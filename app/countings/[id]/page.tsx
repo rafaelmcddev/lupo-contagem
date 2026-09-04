@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BarcodeInput } from '@/components/BarcodeInput';
 import { CameraScanner } from '@/components/CameraScanner';
 import { BoxList, type BoxSummary } from '@/components/BoxList';
@@ -24,6 +24,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const [pendingSkuBarcode, setPendingSkuBarcode] = useState<string | null>(null);
   const [skuInput, setSkuInput] = useState('');
   const [skuError, setSkuError] = useState<string | null>(null);
+  const isFlushingRef = useRef(false);
   const { announceBox } = useSpeechAnnouncer();
 
   const load = useCallback(async () => {
@@ -53,23 +54,35 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   }
 
   const flushQueue = useCallback(async () => {
-    const queued = loadQueue().filter((q) => q.countingId === countingId);
-    if (queued.length === 0) return;
-    setSyncing(true);
-    for (const item of queued) {
-      try {
-        const { status, data } = await submitScan(item.barcode, item.sku);
-        removeFromQueue(loadQueue(), item);
-        if (status === 422 && data.error === 'sku_required') {
-          setPendingSkuBarcode(item.barcode);
+    if (isFlushingRef.current) return;
+    isFlushingRef.current = true;
+    try {
+      const queued = loadQueue().filter((q) => q.countingId === countingId);
+      if (queued.length === 0) return;
+      setSyncing(true);
+      for (const item of queued) {
+        try {
+          const { status, data } = await submitScan(item.barcode, item.sku);
+          if (status === 200) {
+            removeFromQueue(loadQueue(), item);
+          } else if (status === 422 && data.error === 'sku_required') {
+            removeFromQueue(loadQueue(), item);
+            setPendingSkuBarcode(item.barcode);
+            break;
+          } else {
+            // Any other status (e.g. a transient 5xx): leave it queued and
+            // retry on the next tick rather than silently discarding it.
+            break;
+          }
+        } catch {
           break;
         }
-      } catch {
-        break;
       }
+      setSyncing(loadQueue().filter((q) => q.countingId === countingId).length > 0);
+      load();
+    } finally {
+      isFlushingRef.current = false;
     }
-    setSyncing(loadQueue().filter((q) => q.countingId === countingId).length > 0);
-    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countingId, load]);
 
