@@ -39,4 +39,20 @@ describe('BoxList', () => {
     expect(screen.getByText('Caixa 2')).toBeInTheDocument();
     expect(screen.queryByText('null')).not.toBeInTheDocument();
   });
+
+  it('renders "Sem SKU" for a breakdown entry with no linked SKU', () => {
+    render(
+      <BoxList
+        boxes={[
+          {
+            boxNumber: 3,
+            groupName: null,
+            total: 2,
+            skuBreakdown: [{ sku: null, total: 2 }],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Sem SKU')).toBeInTheDocument();
+  });
 });

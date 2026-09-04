@@ -1,5 +1,5 @@
 export interface SkuBreakdownEntry {
-  sku: string;
+  sku: string | null;
   total: number;
 }
 
@@ -23,8 +23,8 @@ export function BoxList({ boxes }: { boxes: BoxSummary[] }) {
           <p className="text-2xl font-semibold text-accent">{box.total} peças</p>
           <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3">
             {box.skuBreakdown.map((s) => (
-              <li key={s.sku} className="flex justify-between text-base text-gray-600">
-                <span>{s.sku}</span>
+              <li key={s.sku ?? 'sem-sku'} className="flex justify-between text-base text-gray-600">
+                <span>{s.sku ?? 'Sem SKU'}</span>
                 <span>{s.total}</span>
               </li>
             ))}

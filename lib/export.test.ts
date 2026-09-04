@@ -15,8 +15,11 @@ const boxes = [
   {
     boxNumber: 2,
     groupName: null,
-    total: 5,
-    skuBreakdown: [{ sku: 'OUTRO-SKU', total: 5 }],
+    total: 7,
+    skuBreakdown: [
+      { sku: 'OUTRO-SKU', total: 5 },
+      { sku: null, total: 2 },
+    ],
   },
 ];
 
@@ -27,7 +30,8 @@ describe('toCsv', () => {
     expect(csv).toContain('1,"Cueca Slip Preta","CUECA-SLIP-P",6');
     expect(csv).toContain('1,"Cueca Slip Preta","CUECA-SLIP-M",4');
     expect(csv).toContain('2,"","OUTRO-SKU",5');
-    expect(csv).toContain('Total,,,15');
+    expect(csv).toContain('2,"","Sem SKU",2');
+    expect(csv).toContain('Total,,,17');
   });
 });
 
@@ -37,8 +41,9 @@ describe('toWhatsAppText', () => {
     expect(text).toContain('Caixa 1 (Cueca Slip Preta): 10');
     expect(text).toContain('  - CUECA-SLIP-P: 6');
     expect(text).toContain('  - CUECA-SLIP-M: 4');
-    expect(text).toContain('Caixa 2: 5');
+    expect(text).toContain('Caixa 2: 7');
     expect(text).toContain('  - OUTRO-SKU: 5');
-    expect(text).toContain('Total: 15');
+    expect(text).toContain('  - Sem SKU: 2');
+    expect(text).toContain('Total: 17');
   });
 });
