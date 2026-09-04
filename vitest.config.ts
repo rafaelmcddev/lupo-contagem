@@ -13,5 +13,6 @@ export default defineConfig({
     setupFiles: ['./tests/setupMatchers.ts'],
     env: { DATABASE_URL: TEST_DATABASE_URL },
     globalSetup: ['./tests/globalSetup.ts'],
+    fileParallelism: false,
   },
 });
