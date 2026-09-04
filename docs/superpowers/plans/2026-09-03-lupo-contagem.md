@@ -1075,7 +1075,7 @@ export async function getPrefixLength(db: DbClient): Promise<number> {
 import { NextResponse } from 'next/server';
 import { db } from '@/db/client';
 import { settings } from '@/db/schema';
-import { DEFAULT_PREFIX_LENGTH, PREFIX_LENGTH_KEY, getPrefixLength } from '@/lib/getPrefixLength';
+import { PREFIX_LENGTH_KEY, getPrefixLength } from '@/lib/getPrefixLength';
 
 export async function GET() {
   const prefixLength = await getPrefixLength(db);
@@ -1094,8 +1094,6 @@ export async function PUT(req: Request) {
     .onConflictDoUpdate({ target: settings.key, set: { value: String(prefixLength) } });
   return NextResponse.json({ prefixLength });
 }
-
-void DEFAULT_PREFIX_LENGTH;
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -1307,9 +1305,10 @@ git commit -m "feat: groups CRUD API (optional prefix-to-name catalog)"
 - [ ] **Step 1: Write the failing test — `lib/scanCounting.test.ts`**
 
 ```ts
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { countings } from '@/db/schema';
+import { countings, groups } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { CountingNotActiveError, InvalidBarcodeError, recordScan } from './scanCounting';
 
@@ -1352,7 +1351,6 @@ describe('recordScan', () => {
   });
 
   it('resolves the group name when a matching prefix is registered', async () => {
-    const { groups } = await import('@/db/schema');
     await db.insert(groups).values({ prefix: '789123', name: 'Cueca Slip Preta' });
     const counting = await createActiveCounting();
     const outcome = await recordScan(db, counting.id, '7891234000011');
@@ -1366,7 +1364,7 @@ describe('recordScan', () => {
 
   it('rejects scanning into a finished counting', async () => {
     const counting = await createActiveCounting();
-    await db.update(countings).set({ status: 'finished' }).where((await import('drizzle-orm')).eq(countings.id, counting.id));
+    await db.update(countings).set({ status: 'finished' }).where(eq(countings.id, counting.id));
     await expect(recordScan(db, counting.id, '7891234000011')).rejects.toThrow(CountingNotActiveError);
   });
 
@@ -1741,6 +1739,7 @@ git commit -m "feat: counting detail API with per-box totals and group names"
 - [ ] **Step 1: Write the failing test — `app/api/countings/[id]/scan/route.test.ts`**
 
 ```ts
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { countings } from '@/db/schema';
@@ -1782,7 +1781,6 @@ describe('/api/countings/:id/scan', () => {
 
   it('returns 409 when scanning into a finished counting', async () => {
     const counting = await createActiveCounting();
-    const { eq } = await import('drizzle-orm');
     await db.update(countings).set({ status: 'finished' }).where(eq(countings.id, counting.id));
     const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '7891234000011' }) }), {
       params: { id: String(counting.id) },
