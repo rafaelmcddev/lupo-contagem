@@ -47,7 +47,7 @@ export default function HomePage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome da contagem (ex: Entrega Lupo 03/09)"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
         <Button type="submit">Iniciar contagem</Button>
       </form>
