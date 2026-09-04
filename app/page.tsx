@@ -84,6 +84,12 @@ export default function HomePage() {
         >
           Grupos
         </Link>
+        <Link
+          href="/products"
+          className="rounded-xl bg-gray-100 px-6 py-4 text-xl font-semibold text-ink transition-colors hover:bg-gray-200"
+        >
+          Produtos
+        </Link>
       </div>
     </main>
   );
