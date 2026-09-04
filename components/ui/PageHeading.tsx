@@ -1,0 +1,3 @@
+export function PageHeading({ children }: { children: React.ReactNode }) {
+  return <h1 className="mb-6 text-3xl font-bold text-ink">{children}</h1>;
+}
