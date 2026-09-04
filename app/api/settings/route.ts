@@ -3,6 +3,8 @@ import { db } from '@/db/client';
 import { settings } from '@/db/schema';
 import { PREFIX_LENGTH_KEY, getPrefixLength } from '@/lib/getPrefixLength';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const prefixLength = await getPrefixLength(db);
   return NextResponse.json({ prefixLength });

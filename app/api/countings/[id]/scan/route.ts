@@ -8,6 +8,8 @@ import {
   recordScan,
 } from '@/lib/scanCounting';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
   const body = await req.json();

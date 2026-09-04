@@ -3,6 +3,8 @@ import { asc } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { groups } from '@/db/schema';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const rows = await db.select().from(groups).orderBy(asc(groups.prefix));
   return NextResponse.json({ groups: rows });

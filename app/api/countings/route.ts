@@ -4,6 +4,8 @@ import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 import { getPrefixLength } from '@/lib/getPrefixLength';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const status = url.searchParams.get('status');

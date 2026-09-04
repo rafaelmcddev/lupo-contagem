@@ -4,6 +4,8 @@ import { db } from '@/db/client';
 import { boxes, countings, groups } from '@/db/schema';
 import { resolveGroupName } from '@/lib/groupMatch';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
   const countingRows = await db.select().from(countings).where(eq(countings.id, countingId)).limit(1);

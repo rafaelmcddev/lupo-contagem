@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
   const [row] = await db

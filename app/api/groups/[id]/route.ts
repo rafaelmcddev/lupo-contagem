@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { groups } from '@/db/schema';
 
+export const dynamic = 'force-dynamic';
+
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
   const body = await req.json();
