@@ -25,12 +25,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const skuResult = await db.execute(sql`
         SELECT s.sku AS sku, COUNT(*)::int AS total
         FROM scans sc
-        JOIN skus s ON s.barcode = sc.barcode
+        LEFT JOIN skus s ON s.barcode = sc.barcode
         WHERE sc.box_id = ${box.id}
         GROUP BY s.sku
         ORDER BY s.sku
       `);
-      const skuBreakdown = (skuResult as any).rows as { sku: string; total: number }[];
+      const skuBreakdown = (skuResult as any).rows as { sku: string | null; total: number }[];
       const total = skuBreakdown.reduce((sum, s) => sum + s.total, 0);
       return {
         boxNumber: box.boxNumber,

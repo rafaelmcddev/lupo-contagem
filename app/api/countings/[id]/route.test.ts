@@ -49,4 +49,25 @@ describe('/api/countings/:id', () => {
     const data = await res.json();
     expect(data.boxes[0].groupName).toBe('Cueca Slip Preta');
   });
+
+  it('shows a "Sem SKU" entry for a scan with no linked SKU when requireSkuUsed is false', async () => {
+    const [counting] = await db
+      .insert(countings)
+      .values({ name: 'Teste', prefixLengthUsed: 7, requireSkuUsed: false, status: 'active' })
+      .returning();
+    await recordScan(db, counting.id, '7891234000011'); // no sku provided, none linked -> null
+    await recordScan(db, counting.id, '7891234999999', 'CUECA-SLIP-M'); // same box, has a sku
+
+    const res = await GET(new Request('http://localhost'), { params: { id: String(counting.id) } });
+    const data = await res.json();
+
+    expect(data.boxes).toHaveLength(1);
+    expect(data.boxes[0].total).toBe(2);
+    expect(data.boxes[0].skuBreakdown).toEqual(
+      expect.arrayContaining([
+        { sku: null, total: 1 },
+        { sku: 'CUECA-SLIP-M', total: 1 },
+      ]),
+    );
+  });
 });
