@@ -22,4 +22,11 @@ describe('/api/settings', () => {
     const res = await PUT(new Request('http://localhost/api/settings', { method: 'PUT', body: JSON.stringify({ prefixLength: 0 }) }));
     expect(res.status).toBe(400);
   });
+
+  it('returns 400 invalid_json when the body is malformed', async () => {
+    const res = await PUT(new Request('http://localhost/api/settings', { method: 'PUT', body: '{not json' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_json');
+  });
 });

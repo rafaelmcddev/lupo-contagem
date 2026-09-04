@@ -11,7 +11,12 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
   const prefix = String(body.prefix ?? '').trim();
   const name = String(body.name ?? '').trim();
   if (!prefix || !name) {

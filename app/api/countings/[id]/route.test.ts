@@ -13,6 +13,11 @@ describe('/api/countings/:id', () => {
     expect(res.status).toBe(404);
   });
 
+  it('returns 404 for a non-integer id instead of throwing', async () => {
+    const res = await GET(new Request('http://localhost'), { params: { id: 'abc' } });
+    expect(res.status).toBe(404);
+  });
+
   it('returns boxes with totals, SKU breakdown, and the grand total', async () => {
     const [counting] = await db.insert(countings).values({ name: 'Teste', prefixLengthUsed: 7, status: 'active' }).returning();
     await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P');

@@ -32,4 +32,11 @@ describe('/api/countings', () => {
     const data = await res.json();
     expect(data.countings).toHaveLength(0);
   });
+
+  it('returns 400 invalid_json when the body is malformed', async () => {
+    const res = await POST(new Request('http://localhost', { method: 'POST', body: '{not json' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_json');
+  });
 });

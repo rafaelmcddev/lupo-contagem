@@ -11,7 +11,12 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
   const prefixLength = Number(body.prefixLength);
   if (!Number.isInteger(prefixLength) || prefixLength < 1 || prefixLength > 20) {
     return NextResponse.json({ error: 'invalid_prefix_length' }, { status: 400 });

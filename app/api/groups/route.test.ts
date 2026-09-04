@@ -30,4 +30,11 @@ describe('/api/groups', () => {
     const res = await POST(new Request('http://localhost/api/groups', { method: 'POST', body: JSON.stringify({ prefix: '1', name: '' }) }));
     expect(res.status).toBe(400);
   });
+
+  it('returns 400 invalid_json when the body is malformed', async () => {
+    const res = await POST(new Request('http://localhost/api/groups', { method: 'POST', body: '{not json' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_json');
+  });
 });

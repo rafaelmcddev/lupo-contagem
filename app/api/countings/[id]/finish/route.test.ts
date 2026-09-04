@@ -25,4 +25,22 @@ describe('/api/countings/:id/finish', () => {
     const res = await POST(new Request('http://localhost', { method: 'POST' }), { params: { id: '999999' } });
     expect(res.status).toBe(404);
   });
+
+  it('returns 404 for a non-integer id instead of throwing', async () => {
+    const res = await POST(new Request('http://localhost', { method: 'POST' }), { params: { id: 'abc' } });
+    expect(res.status).toBe(404);
+  });
+
+  it('does not overwrite finishedAt when finish is called again on an already-finished counting', async () => {
+    const [counting] = await db.insert(countings).values({ name: 'Teste', prefixLengthUsed: 7, status: 'active' }).returning();
+    const first = await POST(new Request('http://localhost', { method: 'POST' }), { params: { id: String(counting.id) } });
+    const firstData = await first.json();
+
+    const second = await POST(new Request('http://localhost', { method: 'POST' }), { params: { id: String(counting.id) } });
+    expect(second.status).toBe(200);
+    const secondData = await second.json();
+
+    expect(secondData.counting.status).toBe('finished');
+    expect(secondData.counting.finishedAt).toBe(firstData.counting.finishedAt);
+  });
 });

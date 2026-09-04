@@ -33,4 +33,26 @@ describe('/api/groups/:id', () => {
     const res = await DELETE(new Request('http://localhost', { method: 'DELETE' }), { params: { id: String(group.id) } });
     expect(res.status).toBe(200);
   });
+
+  it('returns 404 for a non-integer id on PUT instead of throwing', async () => {
+    const res = await PUT(new Request('http://localhost', { method: 'PUT', body: JSON.stringify({ name: 'X' }) }), {
+      params: { id: 'abc' },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for a non-integer id on DELETE instead of throwing', async () => {
+    const res = await DELETE(new Request('http://localhost', { method: 'DELETE' }), { params: { id: 'abc' } });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 invalid_json when the PUT body is malformed', async () => {
+    const group = await createGroup();
+    const res = await PUT(new Request('http://localhost', { method: 'PUT', body: '{not json' }), {
+      params: { id: String(group.id) },
+    });
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_json');
+  });
 });
