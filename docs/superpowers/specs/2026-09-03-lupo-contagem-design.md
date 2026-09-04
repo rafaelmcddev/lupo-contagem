@@ -40,6 +40,15 @@ final.
 - **Leitura duplicada rápida é filtrada:** o mesmo código de barras lido
   de novo em menos de ~1 segundo é ignorado (mitiga o "double-fire" comum de
   leitores HID), não conta como peça extra.
+- **Catálogo de grupos opcional:** o usuário pode, se quiser, cadastrar um
+  nome para um prefixo (ex: "789123" = "Cueca Slip Preta P"), a seu
+  critério — nada obriga a cadastrar. Quando existir cadastro para o
+  prefixo de uma caixa, o nome aparece na tela e nos relatórios ao lado do
+  número da caixa; quando não existir, aparece só o número.
+- **Áudio da caixa:** a cada leitura válida, o sistema anuncia por voz
+  "Caixa N" (o número, sempre — é o que está escrito na caixa física),
+  pra quem está contando só escutar e jogar a peça na caixa certa sem
+  precisar olhar a tela.
 - **Ao final:** ver totais na tela, exportar/compartilhar (CSV e texto
   pronto pra WhatsApp) e manter histórico de contagens finalizadas.
 
@@ -59,15 +68,20 @@ final.
    Atalhos para **Histórico** e **Configurações**.
 2. **Contagem ativa** — campo de texto sempre em foco (recebe a digitação
    do leitor físico), botão "usar câmera" (abre modal de leitura via
-   câmera), lista ao vivo das caixas da contagem com contagem atualizada em
-   tempo real, botão **"Finalizar contagem"**.
-3. **Resumo** — tabela Caixa × Quantidade + total geral da contagem;
+   câmera), lista ao vivo das caixas da contagem (número + nome do grupo,
+   quando cadastrado) com contagem atualizada em tempo real, anúncio por
+   voz "Caixa N" a cada leitura válida, botão **"Finalizar contagem"**.
+3. **Resumo** — tabela Caixa × Quantidade + total geral da contagem
+   (mostrando o nome do grupo ao lado do número, quando cadastrado);
    botões para exportar CSV e gerar texto de WhatsApp. Usada tanto logo
    após finalizar quanto ao abrir o detalhe de uma contagem no Histórico.
 4. **Histórico** — lista de contagens já finalizadas (nome, data, total),
    abre o Resumo daquela contagem.
 5. **Configurações** — campo numérico para o tamanho do prefixo (dígitos),
    valor usado como padrão em toda nova contagem criada dali em diante.
+6. **Grupos** — catálogo opcional de prefixo → nome: lista os cadastrados,
+   formulário pra adicionar/editar/remover. Independente de qualquer
+   contagem específica (é um catálogo global e persistente).
 
 ## Modelo de dados
 
@@ -96,12 +110,28 @@ scans
 settings
   key    text pk
   value  text     -- inclui "prefix_length" (padrão global atual)
+
+groups
+  id          pk
+  prefix      text unique   -- prefixo cadastrado, tamanho livre
+  name        text          -- nome dado ao grupo pelo usuário
+  created_at  timestamp
 ```
 
 Os totais por caixa são derivados por `COUNT(*)` sobre `scans` (não um
 contador denormalizado) — isso evita dessincronização e mantém uma trilha
 de auditoria completa (cada leitura fica registrada, útil pra investigar
 qualquer divergência com a nota fiscal).
+
+`groups` é decoupled de `prefix_length`: o prefixo cadastrado num grupo
+pode ter qualquer tamanho, não precisa bater exatamente com o
+`prefix_length_used` de uma contagem. A resolução do nome de uma caixa é
+feita em tempo de exibição (não gravada em `boxes`): busca-se, entre todos
+os `groups.prefix` que são prefixo do `boxes.prefix`, o mais longo
+("mais específico") — se nenhum bater, a caixa aparece sem nome. Isso
+significa que nomear um grupo depois também atualiza a exibição de
+contagens antigas que já tinham aquele prefixo, e mudar o `prefix_length`
+global não invalida cadastros já feitos.
 
 ## Fluxo de contagem e API
 
@@ -123,11 +153,17 @@ qualquer divergência com a nota fiscal).
      contagem ao mesmo tempo sem criar caixas duplicadas para o mesmo
      grupo).
   5. Insere a linha em `scans`.
-  6. Retorna a caixa atingida e seu total atualizado.
+  6. Retorna a caixa atingida (número + nome do grupo, se houver
+     correspondência em `groups`) e seu total atualizado.
 - `POST /api/countings/:id/finish` — marca `finished_at`/`status=finished`;
   se não houver nenhum scan, o cliente pede confirmação antes de chamar
   (a API permite finalizar mesmo vazia).
 - `GET /api/settings` / `PUT /api/settings` — ler/gravar `prefix_length`.
+- `GET /api/groups` — lista o catálogo de grupos cadastrados.
+- `POST /api/groups` `{prefix, name}` / `PUT /api/groups/:id` /
+  `DELETE /api/groups/:id` — cadastrar, renomear ou remover um grupo.
+  `GET /api/countings/:id` também resolve e inclui o nome do grupo de
+  cada caixa na resposta (mesma lógica de prefixo mais específico).
 
 ### Entrada de leitura
 
@@ -138,8 +174,14 @@ qualquer divergência com a nota fiscal).
   ao decodificar um código, chama o mesmo handler de scan usado pelo
   leitor físico.
 - **Feedback em tempo real:** a cada scan bem-sucedido, a UI atualiza
-  otimisticamente (ex: "Caixa 3 → 15") e confirma com a resposta do
-  servidor.
+  otimisticamente (ex: "Caixa 3 → 15", ou "Caixa 3 — Cueca Slip Preta →
+  15" quando há grupo cadastrado) e confirma com a resposta do servidor.
+- **Feedback sonoro:** a cada scan bem-sucedido (não em duplicatas
+  ignoradas nem em códigos inválidos), o navegador anuncia por voz
+  "Caixa N" via `SpeechSynthesis` (Web Speech API nativa, PT-BR,
+  sem custo/serviço externo) — sempre o número, independente de o grupo
+  ter nome cadastrado, já que é o número que está escrito na caixa
+  física.
 
 ## Tratamento de erros
 
@@ -158,12 +200,19 @@ qualquer divergência com a nota fiscal).
 - **Finalizar contagem vazia:** permitido, com confirmação no cliente.
 - **Câmera sem permissão/indisponível:** mensagem clara; não afeta o
   funcionamento do leitor físico.
+- **`SpeechSynthesis` indisponível no navegador:** falha silenciosa (sem
+  áudio), não bloqueia scan nem exibição — o feedback visual continua
+  funcionando normalmente.
+- **Prefixo de grupo duplicado/conflitante:** a constraint `UNIQUE` em
+  `groups.prefix` impede cadastrar o mesmo prefixo duas vezes; ao editar,
+  a mesma validação se aplica.
 
 ## Testes
 
 - **Unitário:** extração de prefixo; lógica de atribuição de caixa (prefixo
   novo → cria caixa N+1; prefixo repetido → soma na caixa existente;
-  duplicata <1s → ignorada).
+  duplicata <1s → ignorada); resolução de nome de grupo por prefixo mais
+  específico (inclusive caso de múltiplos cadastros compatíveis).
 - **Integração de API:** contra banco de teste — criar contagem → scans →
   finish → resumo bate com o esperado; teste de concorrência simulando
   dois scans simultâneos do mesmo prefixo novo (deve gerar uma única
@@ -176,7 +225,7 @@ qualquer divergência com a nota fiscal).
 
 - Edição/merge manual de caixas durante a contagem.
 - Autenticação/autorização.
-- Cadastro de nomes reais de produto por prefixo (o sistema não sabe o
-  que cada grupo *é*, só agrupa por prefixo idêntico).
+- Importação em massa de catálogo de grupos (ex: planilha) — cadastro é
+  manual, um grupo por vez, pela tela Grupos.
 - Uso 100% offline (PWA completo) — fila local cobre instabilidade
   pontual de rede, não operação totalmente offline.
