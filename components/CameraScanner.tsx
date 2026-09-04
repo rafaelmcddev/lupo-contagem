@@ -10,17 +10,25 @@ export function CameraScanner({ onScan, onClose }: { onScan: (barcode: string) =
   useEffect(() => {
     const reader = new BrowserMultiFormatReader();
     let controls: { stop: () => void } | undefined;
+    let cancelled = false;
 
     reader
       .decodeFromVideoDevice(undefined, videoRef.current ?? undefined, (result) => {
         if (result) onScan(result.getText());
       })
       .then((c) => {
+        if (cancelled) {
+          c.stop();
+          return;
+        }
         controls = c;
       })
       .catch(() => setError('Não foi possível acessar a câmera.'));
 
-    return () => controls?.stop();
+    return () => {
+      cancelled = true;
+      controls?.stop();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -29,7 +37,7 @@ export function CameraScanner({ onScan, onClose }: { onScan: (barcode: string) =
       {error ? (
         <p className="text-xl text-white">{error}</p>
       ) : (
-        <video ref={videoRef} className="max-h-[70vh] rounded-2xl" />
+        <video ref={videoRef} playsInline muted className="max-h-[70vh] rounded-2xl" />
       )}
       <button onClick={onClose} className="mt-6 rounded-xl bg-white px-6 py-4 text-xl font-semibold">
         Fechar câmera
