@@ -7,7 +7,7 @@ import { BoxList, type BoxSummary } from '@/components/BoxList';
 import { ExportButtons } from '@/components/ExportButtons';
 import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
-import { useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
+import { unlockSpeech, useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
 import { enqueueScan, loadQueue, removeFromQueue } from '@/lib/scanQueue';
 
 interface CountingDetail {
@@ -24,13 +24,24 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const [pendingSkuBarcode, setPendingSkuBarcode] = useState<string | null>(null);
   const [skuInput, setSkuInput] = useState('');
   const [skuError, setSkuError] = useState<string | null>(null);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const isFlushingRef = useRef(false);
   const { announceBox } = useSpeechAnnouncer();
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/countings/${countingId}`);
-    const data = await res.json();
-    setDetail(data);
+    try {
+      const res = await fetch(`/api/countings/${countingId}`);
+      if (!res.ok) {
+        setLoadError(res.status === 404 ? 'Contagem não encontrada.' : 'Falha ao carregar a contagem.');
+        return;
+      }
+      const data = await res.json();
+      setDetail(data);
+      setLoadError(null);
+    } catch {
+      setLoadError('Falha ao carregar a contagem. Verifique sua conexão.');
+    }
   }, [countingId]);
 
   useEffect(() => {
@@ -38,16 +49,25 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   }, [load]);
 
   useEffect(() => {
+    document.addEventListener('pointerdown', unlockSpeech, { once: true });
+    return () => document.removeEventListener('pointerdown', unlockSpeech);
+  }, []);
+
+  useEffect(() => {
     if (detail?.counting.status !== 'active') return;
     const interval = setInterval(load, 3000);
     return () => clearInterval(interval);
   }, [detail?.counting.status, load]);
 
-  async function submitScan(barcode: string, sku?: string) {
+  async function submitScan(barcode: string, sku?: string, scannedAt?: number) {
     const res = await fetch(`/api/countings/${countingId}/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sku ? { barcode, sku } : { barcode }),
+      body: JSON.stringify({
+        barcode,
+        ...(sku ? { sku } : {}),
+        ...(scannedAt !== undefined ? { scannedAt: new Date(scannedAt).toISOString() } : {}),
+      }),
     });
     const data = await res.json();
     return { status: res.status, data };
@@ -62,7 +82,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       setSyncing(true);
       for (const item of queued) {
         try {
-          const { status, data } = await submitScan(item.barcode, item.sku);
+          const { status, data } = await submitScan(item.barcode, item.sku, item.queuedAt);
           if (status === 200) {
             removeFromQueue(loadQueue(), item);
           } else if (status === 422 && data.error === 'sku_required') {
@@ -87,13 +107,15 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   }, [countingId, load]);
 
   useEffect(() => {
+    if (detail?.counting.status !== 'active') return;
     flushQueue();
-    window.addEventListener('online', flushQueue);
     const interval = setInterval(flushQueue, 5000);
-    return () => {
-      window.removeEventListener('online', flushQueue);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
+  }, [detail?.counting.status, flushQueue]);
+
+  useEffect(() => {
+    window.addEventListener('online', flushQueue);
+    return () => window.removeEventListener('online', flushQueue);
   }, [flushQueue]);
 
   async function handleScan(barcode: string) {
@@ -104,7 +126,20 @@ export default function CountingPage({ params }: { params: { id: string } }) {
         setPendingSkuBarcode(barcode);
         return;
       }
-      if (!data.duplicate && data.box) {
+      if (status === 400) {
+        setScanMessage('Código inválido — verifique a leitura.');
+        return;
+      }
+      if (status === 409) {
+        setScanMessage('Esta contagem já foi finalizada.');
+        return;
+      }
+      if (data.duplicate === true) {
+        setScanMessage('Leitura repetida ignorada.');
+        return;
+      }
+      setScanMessage(null);
+      if (data.box) {
         announceBox(data.box.boxNumber);
       }
       load();
@@ -150,6 +185,13 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     load();
   }
 
+  if (loadError) {
+    return (
+      <main className="mx-auto max-w-4xl p-8">
+        <p className="text-2xl font-bold text-red-600">{loadError}</p>
+      </main>
+    );
+  }
   if (!detail) return null;
 
   const isActive = detail.counting.status === 'active';
@@ -159,6 +201,14 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       <PageHeading>{detail.counting.name}</PageHeading>
 
       {syncing && <p className="mb-4 text-lg text-amber-600">Sincronizando leituras pendentes...</p>}
+
+      {scanMessage && (
+        <p
+          className={`mb-4 text-lg ${scanMessage === 'Leitura repetida ignorada.' ? 'text-amber-600' : 'text-red-600'}`}
+        >
+          {scanMessage}
+        </p>
+      )}
 
       {isActive && (
         <div className="mb-8 flex flex-col gap-4">

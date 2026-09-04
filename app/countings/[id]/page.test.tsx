@@ -15,7 +15,7 @@ const activeDetail = {
 
 describe('CountingPage', () => {
   it('shows the scanner input and box list while active', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, json: async () => activeDetail }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => activeDetail }));
     render(<CountingPage params={{ id: '1' }} />);
 
     await waitFor(() => expect(screen.getByText('Caixa 1')).toBeInTheDocument());
@@ -26,13 +26,13 @@ describe('CountingPage', () => {
   it('sends a scan and re-fetches the detail when a barcode is entered', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ status: 200, json: async () => activeDetail })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
       .mockResolvedValueOnce({
-        status: 200,
+        status: 200, ok: true,
         json: async () => ({ duplicate: false, box: { boxNumber: 1, groupName: null, sku: 'CUECA-SLIP-P', total: 3 } }),
       })
       .mockResolvedValueOnce({
-        status: 200,
+        status: 200, ok: true,
         json: async () => ({ ...activeDetail, boxes: [{ ...activeDetail.boxes[0], total: 3 }], grandTotal: 3 }),
       });
     vi.stubGlobal('fetch', fetchMock);
@@ -55,14 +55,14 @@ describe('CountingPage', () => {
   it('prompts for a SKU when the scan requires one, then resubmits with it', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ status: 200, json: async () => activeDetail })
-      .mockResolvedValueOnce({ status: 422, json: async () => ({ error: 'sku_required' }) })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
+      .mockResolvedValueOnce({ status: 422, ok: false, json: async () => ({ error: 'sku_required' }) })
       .mockResolvedValueOnce({
-        status: 200,
+        status: 200, ok: true,
         json: async () => ({ duplicate: false, box: { boxNumber: 2, groupName: null, sku: 'NOVO-SKU', total: 1 } }),
       })
       .mockResolvedValueOnce({
-        status: 200,
+        status: 200, ok: true,
         json: async () => ({
           ...activeDetail,
           boxes: [...activeDetail.boxes, { boxNumber: 2, groupName: null, total: 1, skuBreakdown: [{ sku: 'NOVO-SKU', total: 1 }] }],
@@ -97,7 +97,7 @@ describe('CountingPage', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
-        status: 200,
+        status: 200, ok: true,
         json: async () => ({ ...activeDetail, counting: { ...activeDetail.counting, status: 'finished' } }),
       }),
     );
@@ -110,7 +110,7 @@ describe('CountingPage', () => {
   it('queues a scan and shows a syncing indicator when the network request fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ status: 200, json: async () => activeDetail })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
       .mockRejectedValueOnce(new Error('network error'));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -122,5 +122,29 @@ describe('CountingPage', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(screen.getByText(/Sincronizando/)).toBeInTheDocument());
+  });
+
+  it('shows a message when the scanned barcode is invalid', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
+      .mockResolvedValueOnce({ status: 400, ok: false, json: async () => ({ error: 'invalid_barcode' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CountingPage params={{ id: '1' }} />);
+    await waitFor(() => expect(screen.getByText('Caixa 1')).toBeInTheDocument());
+
+    const input = screen.getByLabelText('Campo de leitura de código de barras');
+    fireEvent.change(input, { target: { value: '123' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByText('Código inválido — verifique a leitura.')).toBeInTheDocument());
+  });
+
+  it('shows a not-found message when the counting fails to load', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404, ok: false, json: async () => ({ error: 'counting_not_found' }) }));
+    render(<CountingPage params={{ id: '999' }} />);
+
+    await waitFor(() => expect(screen.getByText('Contagem não encontrada.')).toBeInTheDocument());
   });
 });
