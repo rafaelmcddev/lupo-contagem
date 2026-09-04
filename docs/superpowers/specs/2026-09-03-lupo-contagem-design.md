@@ -83,6 +83,28 @@ final.
    formulário pra adicionar/editar/remover. Independente de qualquer
    contagem específica (é um catálogo global e persistente).
 
+## Design visual e UX
+
+O uso real é um funcionário de loja, em pé, olhando rapidamente pra tela
+entre uma leitura e outra — não alguém sentado lendo com calma. O visual
+precisa ser **profissional, mas acima de tudo funcional pra esse contexto**,
+e o padrão vale para **todas as telas**, não só a Contagem ativa:
+
+- **Textos grandes por padrão** — corpo de texto e números bem acima do
+  tamanho comum de app administrativo; números de caixa e totais em
+  destaque máximo (a maior fonte da tela).
+- **Alto contraste** — cores e tipografia pensadas pra leitura rápida à
+  distância/de relance, não exigindo aproximar o rosto da tela.
+- **Alvos de toque grandes** — botões (Nova contagem, Finalizar, usar
+  câmera, etc.) dimensionados para toque com o dedo, considerando uso em
+  tablet/celular na loja, não só mouse.
+- **Hierarquia visual simples** — cada tela tem uma ação/informação
+  principal óbvia (ex: na Contagem ativa, a lista de caixas domina a
+  tela; configuração e metadados ficam secundários).
+- Isso é um guia de estilo para a fase de implementação/UI, não uma
+  biblioteca de componentes específica — a escolha de stack de estilização
+  (Tailwind, etc.) fica pra fase de plano.
+
 ## Modelo de dados
 
 ```
