@@ -12,12 +12,21 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
-  const body = await req.json();
+  if (!Number.isInteger(countingId)) {
+    return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
+  }
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
   const barcode = String(body.barcode ?? '');
   const sku = typeof body.sku === 'string' ? body.sku : undefined;
+  const scannedAt = typeof body.scannedAt === 'string' ? new Date(body.scannedAt) : undefined;
 
   try {
-    const outcome = await recordScan(db, countingId, barcode, sku);
+    const outcome = await recordScan(db, countingId, barcode, sku, scannedAt);
     return NextResponse.json(outcome);
   } catch (err) {
     if (err instanceof InvalidBarcodeError) {

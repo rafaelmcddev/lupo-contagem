@@ -107,6 +107,7 @@ export async function recordScan(
   countingId: number,
   rawBarcode: string,
   sku?: string,
+  scannedAt?: Date,
 ): Promise<ScanOutcome> {
   const countingRows = await db.select().from(countings).where(eq(countings.id, countingId)).limit(1);
   const counting = countingRows[0];
@@ -116,6 +117,8 @@ export async function recordScan(
   const prefixLength = counting.prefixLengthUsed;
   const barcode = rawBarcode.trim();
   if (!isValidBarcode(barcode, prefixLength)) throw new InvalidBarcodeError();
+
+  const effectiveNow = scannedAt ?? new Date();
 
   const prefix = extractPrefix(barcode, prefixLength);
   const existingBox = await findExistingBox(db, countingId, prefix);
@@ -128,7 +131,7 @@ export async function recordScan(
       .orderBy(desc(scans.scannedAt))
       .limit(1);
     const last = lastScanRows[0];
-    if (isDuplicateScan(last?.scannedAt ?? null, last?.barcode ?? null, barcode, new Date())) {
+    if (isDuplicateScan(last?.scannedAt ?? null, last?.barcode ?? null, barcode, effectiveNow)) {
       return { duplicate: true, box: null };
     }
   }
@@ -136,7 +139,7 @@ export async function recordScan(
   const resolvedSku = await findOrRequireSku(db, barcode, sku);
 
   const box = existingBox ?? (await findOrCreateBox(db, countingId, prefix));
-  await db.insert(scans).values({ boxId: box.id, barcode });
+  await db.insert(scans).values({ boxId: box.id, barcode, scannedAt: effectiveNow });
 
   const countResult = await db.execute(sql`SELECT COUNT(*)::int AS count FROM scans WHERE box_id = ${box.id}`);
   const total = Number((countResult as any).rows[0].count);

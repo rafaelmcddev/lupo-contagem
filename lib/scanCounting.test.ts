@@ -112,4 +112,32 @@ describe('recordScan', () => {
     const winningSku = skuRows[0].sku;
     expect([a.box?.sku, b.box?.sku].filter(Boolean)).toContain(winningSku);
   });
+
+  it('does not dedupe replayed identical scans when their original scannedAt times are spaced apart (queued-scan replay)', async () => {
+    const counting = await createActiveCounting();
+    const t1 = new Date('2026-01-01T10:00:00Z');
+    const t2 = new Date('2026-01-01T10:00:02Z');
+    const t3 = new Date('2026-01-01T10:00:04Z');
+
+    const a = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P', t1);
+    const b = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P', t2);
+    const c = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P', t3);
+
+    expect(a.duplicate).toBe(false);
+    expect(b.duplicate).toBe(false);
+    expect(c.duplicate).toBe(false);
+    expect(c.box?.total).toBe(3);
+  });
+
+  it('still dedupes when the original scannedAt times are within the 1s window', async () => {
+    const counting = await createActiveCounting();
+    const t1 = new Date('2026-01-01T10:00:00.000Z');
+    const t2 = new Date('2026-01-01T10:00:00.500Z');
+
+    const a = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P', t1);
+    const b = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P', t2);
+
+    expect(a.duplicate).toBe(false);
+    expect(b.duplicate).toBe(true);
+  });
 });
