@@ -49,6 +49,15 @@ final.
   "Caixa N" (o número, sempre — é o que está escrito na caixa física),
   pra quem está contando só escutar e jogar a peça na caixa certa sem
   precisar olhar a tela.
+- **Vínculo obrigatório código de barras → SKU:** cada código de barras
+  exato pertence a um SKU (uma string), cadastrado manualmente. Ao
+  escanear um código de barras que ainda não tem SKU vinculado, o sistema
+  pausa e pede pra digitar o SKU antes de contar a peça; a partir daí o
+  vínculo fica salvo e as próximas leituras daquele mesmo código já vêm
+  com o SKU automaticamente. O SKU aparece na tela ao lado da caixa, e a
+  contagem também é quebrada por SKU dentro de cada caixa (uma caixa
+  agrupa vários SKUs diferentes — por exemplo, tamanhos/cores distintos
+  do mesmo grupo).
 - **Ao final:** ver totais na tela, exportar/compartilhar (CSV e texto
   pronto pra WhatsApp) e manter histórico de contagens finalizadas.
 
@@ -69,12 +78,16 @@ final.
 2. **Contagem ativa** — campo de texto sempre em foco (recebe a digitação
    do leitor físico), botão "usar câmera" (abre modal de leitura via
    câmera), lista ao vivo das caixas da contagem (número + nome do grupo,
-   quando cadastrado) com contagem atualizada em tempo real, anúncio por
-   voz "Caixa N" a cada leitura válida, botão **"Finalizar contagem"**.
+   quando cadastrado, com quebra por SKU dentro de cada caixa) com
+   contagem atualizada em tempo real, anúncio por voz "Caixa N" a cada
+   leitura válida, botão **"Finalizar contagem"**. Quando um código de
+   barras sem SKU vinculado é lido, um campo aparece pedindo o SKU antes
+   de contar a peça.
 3. **Resumo** — tabela Caixa × Quantidade + total geral da contagem
-   (mostrando o nome do grupo ao lado do número, quando cadastrado);
-   botões para exportar CSV e gerar texto de WhatsApp. Usada tanto logo
-   após finalizar quanto ao abrir o detalhe de uma contagem no Histórico.
+   (mostrando o nome do grupo ao lado do número quando cadastrado, e a
+   quebra por SKU dentro de cada caixa); botões para exportar CSV e gerar
+   texto de WhatsApp. Usada tanto logo após finalizar quanto ao abrir o
+   detalhe de uma contagem no Histórico.
 4. **Histórico** — lista de contagens já finalizadas (nome, data, total),
    abre o Resumo daquela contagem.
 5. **Configurações** — campo numérico para o tamanho do prefixo (dígitos),
@@ -138,6 +151,11 @@ groups
   prefix      text unique   -- prefixo cadastrado, tamanho livre
   name        text          -- nome dado ao grupo pelo usuário
   created_at  timestamp
+
+skus
+  barcode     text pk    -- código de barras EXATO (não prefixo)
+  sku         text not null
+  created_at  timestamp
 ```
 
 Os totais por caixa são derivados por `COUNT(*)` sobre `scans` (não um
@@ -155,6 +173,17 @@ significa que nomear um grupo depois também atualiza a exibição de
 contagens antigas que já tinham aquele prefixo, e mudar o `prefix_length`
 global não invalida cadastros já feitos.
 
+`skus` é diferente de `groups` em uma forma importante: a chave é o código
+de barras **exato** (não um prefixo), porque cada variação de
+tamanho/cor tem seu próprio código de barras único, e cada código
+pertence a exatamente um SKU. Ao contrário do nome de grupo (opcional),
+o vínculo com SKU é **obrigatório**: uma linha só é inserida em `scans`
+depois que o código de barras escaneado já tem (ou acabou de ganhar) uma
+linha correspondente em `skus`. Isso garante um invariante simples: toda
+`scans.barcode` sempre tem uma `skus.barcode` correspondente, então a
+quebra por SKU de uma caixa é um `INNER JOIN scans → skus` direto, sem
+necessidade de tratar casos "sem SKU".
+
 ## Fluxo de contagem e API
 
 - `POST /api/countings` `{name}` — cria contagem (`status=active`,
@@ -162,21 +191,30 @@ global não invalida cadastros já feitos.
 - `GET /api/countings?status=active` — lista contagens abertas, para a
   tela de Início.
 - `GET /api/countings?status=finished` — lista para o Histórico.
-- `GET /api/countings/:id` — detalhe (caixas + totais), usado no Resumo.
-- `POST /api/countings/:id/scan` `{barcode}`:
+- `GET /api/countings/:id` — detalhe (caixas + totais, com quebra por SKU
+  dentro de cada caixa), usado no Resumo.
+- `POST /api/countings/:id/scan` `{barcode, sku?}`:
   1. Valida o `barcode` (numérico, tamanho mínimo compatível com
      `prefix_length_used`); inválido → erro, nada é gravado.
   2. Extrai o prefixo (`prefix_length_used` primeiros dígitos).
   3. Busca a última leitura da caixa candidata; se o mesmo `barcode` foi
      lido há menos de 1s, ignora (retorna "duplicado ignorado").
-  4. Upsert atômico da `box` por `(counting_id, prefix)` — se não existir,
+  4. Busca o SKU vinculado a esse `barcode` exato em `skus`. Se não
+     existir: sem `sku` no corpo da requisição → retorna erro
+     "sku_required" (nada é gravado, a UI deve pedir o SKU e reenviar);
+     com `sku` no corpo → cadastra o vínculo (upsert atômico por
+     `barcode`, mesmo padrão de constraint única + retry das caixas, para
+     suportar duas pessoas cadastrando o mesmo código novo ao mesmo
+     tempo) e segue.
+  5. Upsert atômico da `box` por `(counting_id, prefix)` — se não existir,
      cria com o próximo `box_number` sequencial (usando uma constraint
      única + retry, para suportar múltiplas pessoas escaneando na mesma
      contagem ao mesmo tempo sem criar caixas duplicadas para o mesmo
      grupo).
-  5. Insere a linha em `scans`.
-  6. Retorna a caixa atingida (número + nome do grupo, se houver
-     correspondência em `groups`) e seu total atualizado.
+  6. Insere a linha em `scans`.
+  7. Retorna a caixa atingida (número + nome do grupo, se houver
+     correspondência em `groups`, + o SKU resolvido) e seu total
+     atualizado.
 - `POST /api/countings/:id/finish` — marca `finished_at`/`status=finished`;
   se não houver nenhum scan, o cliente pede confirmação antes de chamar
   (a API permite finalizar mesmo vazia).
@@ -197,7 +235,10 @@ global não invalida cadastros já feitos.
   leitor físico.
 - **Feedback em tempo real:** a cada scan bem-sucedido, a UI atualiza
   otimisticamente (ex: "Caixa 3 → 15", ou "Caixa 3 — Cueca Slip Preta →
-  15" quando há grupo cadastrado) e confirma com a resposta do servidor.
+  15" quando há grupo cadastrado) mostrando também o SKU da peça lida, e
+  confirma com a resposta do servidor. Quando a resposta indica
+  "sku_required", a UI mostra um campo pedindo o SKU daquele código antes
+  de reenviar o mesmo scan (agora com o SKU preenchido).
 - **Feedback sonoro:** a cada scan bem-sucedido (não em duplicatas
   ignoradas nem em códigos inválidos), o navegador anuncia por voz
   "Caixa N" via `SpeechSynthesis` (Web Speech API nativa, PT-BR,
@@ -228,6 +269,13 @@ global não invalida cadastros já feitos.
 - **Prefixo de grupo duplicado/conflitante:** a constraint `UNIQUE` em
   `groups.prefix` impede cadastrar o mesmo prefixo duas vezes; ao editar,
   a mesma validação se aplica.
+- **Código de barras sem SKU vinculado:** o scan não é gravado até que um
+  SKU seja informado; a UI trata isso como um passo extra do fluxo de
+  leitura, não como um erro bloqueante.
+- **Corrida entre duas pessoas cadastrando SKU pro mesmo código novo ao
+  mesmo tempo:** resolvida pela chave primária `skus.barcode` + upsert
+  atômico com retry — o primeiro SKU gravado vence, a segunda requisição
+  reaproveita esse valor (mesmo padrão usado para a criação de caixas).
 
 ## Testes
 
@@ -238,7 +286,10 @@ global não invalida cadastros já feitos.
 - **Integração de API:** contra banco de teste — criar contagem → scans →
   finish → resumo bate com o esperado; teste de concorrência simulando
   dois scans simultâneos do mesmo prefixo novo (deve gerar uma única
-  caixa).
+  caixa); scan de um código sem SKU retorna "sku_required" e não grava
+  nada; reenvio com `sku` cadastra o vínculo e grava o scan; scan
+  subsequente do mesmo código já vem com o SKU automaticamente; resumo de
+  uma caixa com múltiplos SKUs mostra a quebra correta por SKU.
 - **Manual/E2E:** via skill `run`; simular o leitor físico digitando no
   campo (sem hardware real) e testar a leitura por câmera com um código
   impresso.
@@ -249,5 +300,8 @@ global não invalida cadastros já feitos.
 - Autenticação/autorização.
 - Importação em massa de catálogo de grupos (ex: planilha) — cadastro é
   manual, um grupo por vez, pela tela Grupos.
+- Edição ou remoção posterior de um vínculo código de barras → SKU já
+  cadastrado (o vínculo é criado uma vez, na primeira leitura daquele
+  código, e não muda depois nesta versão).
 - Uso 100% offline (PWA completo) — fila local cobre instabilidade
   pontual de rede, não operação totalmente offline.
