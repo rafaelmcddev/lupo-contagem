@@ -6,12 +6,16 @@ import { PageHeading } from '@/components/ui/PageHeading';
 
 export default function SettingsPage() {
   const [prefixLength, setPrefixLength] = useState<number | ''>('');
+  const [requireSku, setRequireSku] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((d) => setPrefixLength(d.prefixLength));
+      .then((d) => {
+        setPrefixLength(d.prefixLength);
+        setRequireSku(d.requireSku);
+      });
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -19,7 +23,7 @@ export default function SettingsPage() {
     await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prefixLength: Number(prefixLength) }),
+      body: JSON.stringify({ prefixLength: Number(prefixLength), requireSku }),
     });
     setSaved(true);
   }
@@ -43,6 +47,19 @@ export default function SettingsPage() {
           }}
           className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
         />
+        <label className="flex items-center gap-3 text-xl font-medium" htmlFor="requireSku">
+          <input
+            id="requireSku"
+            type="checkbox"
+            checked={requireSku}
+            onChange={(e) => {
+              setRequireSku(e.target.checked);
+              setSaved(false);
+            }}
+            className="h-6 w-6"
+          />
+          Exigir SKU ao bipar
+        </label>
         <Button type="submit">Salvar</Button>
         {saved && <p className="text-lg text-green-600">Salvo!</p>}
       </form>
