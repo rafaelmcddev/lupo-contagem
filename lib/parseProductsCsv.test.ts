@@ -54,4 +54,18 @@ describe('parseProductsCsv', () => {
     const { rows } = parseProductsCsv(csv);
     expect(rows).toEqual([{ name: 'X', sku: 'Y', barcode: '123' }]);
   });
+
+  it('reports correct line numbers when blank lines precede error rows', () => {
+    const csv = 'nome;sku;codebar\n\nX;Y;abc\nZ;W;123';
+    const { rows, errors } = parseProductsCsv(csv);
+    expect(rows).toEqual([{ name: 'Z', sku: 'W', barcode: '123' }]);
+    expect(errors).toEqual([{ line: 3, reason: 'código de barras vazio ou não numérico' }]);
+  });
+
+  it('handles blank lines before the header', () => {
+    const csv = '\nnome;sku;codebar\nX;Y;123';
+    const { rows, errors } = parseProductsCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows).toEqual([{ name: 'X', sku: 'Y', barcode: '123' }]);
+  });
 });

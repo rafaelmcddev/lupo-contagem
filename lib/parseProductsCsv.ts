@@ -17,10 +17,20 @@ export interface ParseProductsCsvResult {
 }
 
 export function parseProductsCsv(csv: string): ParseProductsCsvResult {
-  const lines = csv.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length === 0) throw new InvalidCsvHeaderError();
+  const allLines = csv.split(/\r?\n/);
 
-  const header = lines[0].split(';').map((h) => h.trim().toLowerCase());
+  // Find the first non-blank line as the header
+  let headerIdx = -1;
+  for (let i = 0; i < allLines.length; i++) {
+    if (allLines[i].trim().length > 0) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) throw new InvalidCsvHeaderError();
+
+  const header = allLines[headerIdx].split(';').map((h) => h.trim().toLowerCase());
   const nameIdx = header.indexOf('nome');
   const skuIdx = header.indexOf('sku');
   const barcodeIdx = header.indexOf('codebar');
@@ -29,8 +39,15 @@ export function parseProductsCsv(csv: string): ParseProductsCsvResult {
   const rows: ParsedProductRow[] = [];
   const errors: ProductRowError[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(';');
+  for (let i = headerIdx + 1; i < allLines.length; i++) {
+    const lineContent = allLines[i];
+
+    // Skip blank lines without reporting an error
+    if (lineContent.trim().length === 0) {
+      continue;
+    }
+
+    const cols = lineContent.split(';');
     const barcode = (cols[barcodeIdx] ?? '').trim();
     const sku = (cols[skuIdx] ?? '').trim();
     const name = (cols[nameIdx] ?? '').trim();
