@@ -15,7 +15,7 @@ export interface BoxHit {
   boxNumber: number;
   prefix: string;
   groupName: string | null;
-  sku: string;
+  sku: string | null;
   total: number;
 }
 
@@ -69,12 +69,20 @@ async function findLinkedSku(db: DbClient, barcode: string): Promise<string | un
   return rows[0]?.sku;
 }
 
-async function findOrRequireSku(db: DbClient, barcode: string, providedSku: string | undefined): Promise<string> {
+async function findOrResolveSku(
+  db: DbClient,
+  barcode: string,
+  providedSku: string | undefined,
+  requireSku: boolean,
+): Promise<string | null> {
   const existing = await findLinkedSku(db, barcode);
   if (existing) return existing;
 
   const trimmed = (providedSku ?? '').trim();
-  if (!trimmed) throw new SkuRequiredError();
+  if (!trimmed) {
+    if (requireSku) throw new SkuRequiredError();
+    return null;
+  }
 
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
@@ -136,7 +144,7 @@ export async function recordScan(
     }
   }
 
-  const resolvedSku = await findOrRequireSku(db, barcode, sku);
+  const resolvedSku = await findOrResolveSku(db, barcode, sku, counting.requireSkuUsed);
 
   const box = existingBox ?? (await findOrCreateBox(db, countingId, prefix));
   await db.insert(scans).values({ boxId: box.id, barcode, scannedAt: effectiveNow });

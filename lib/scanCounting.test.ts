@@ -7,8 +7,11 @@ import { CountingNotActiveError, InvalidBarcodeError, SkuRequiredError, recordSc
 
 beforeEach(resetDb);
 
-async function createActiveCounting(prefixLength = 7) {
-  const [row] = await db.insert(countings).values({ name: 'Teste', prefixLengthUsed: prefixLength, status: 'active' }).returning();
+async function createActiveCounting(prefixLength = 7, requireSku = true) {
+  const [row] = await db
+    .insert(countings)
+    .values({ name: 'Teste', prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
+    .returning();
   return row;
 }
 
@@ -139,5 +142,29 @@ describe('recordScan', () => {
 
     expect(a.duplicate).toBe(false);
     expect(b.duplicate).toBe(true);
+  });
+
+  it('counts a new barcode without a SKU when requireSkuUsed is false, resolving sku to null', async () => {
+    const counting = await createActiveCounting(7, false);
+    const outcome = await recordScan(db, counting.id, '7891234000011');
+    expect(outcome.duplicate).toBe(false);
+    expect(outcome.box?.sku).toBeNull();
+    expect(outcome.box?.boxNumber).toBe(1);
+    expect(outcome.box?.total).toBe(1);
+  });
+
+  it('still links a provided SKU even when requireSkuUsed is false', async () => {
+    const counting = await createActiveCounting(7, false);
+    const outcome = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P');
+    expect(outcome.box?.sku).toBe('CUECA-SLIP-P');
+  });
+
+  it('reuses an already-linked SKU when requireSkuUsed is false, without needing it resent', async () => {
+    const counting = await createActiveCounting(7, false);
+    await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P');
+    const outcome = await recordScan(db, counting.id, '7891234999999');
+    // different exact barcode, same prefix, no SKU provided and none linked yet -> null, not an error
+    expect(outcome.box?.sku).toBeNull();
+    expect(outcome.box?.boxNumber).toBe(1);
   });
 });
