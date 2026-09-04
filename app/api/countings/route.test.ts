@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetDb } from '@/tests/resetDb';
+import { db } from '@/db/client';
+import { countings, settings } from '@/db/schema';
 import { GET, POST } from './route';
 
 beforeEach(resetDb);
@@ -12,6 +14,14 @@ describe('/api/countings', () => {
     expect(data.counting.name).toBe('Entrega Lupo 03/09');
     expect(data.counting.status).toBe('active');
     expect(data.counting.prefixLengthUsed).toBe(7);
+    expect(data.counting.requireSkuUsed).toBe(true);
+  });
+
+  it('freezes requireSkuUsed as false when the setting was turned off before creation', async () => {
+    await db.insert(settings).values({ key: 'require_sku', value: 'false' });
+    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ name: 'Sem SKU' }) }));
+    const data = await res.json();
+    expect(data.counting.requireSkuUsed).toBe(false);
   });
 
   it('rejects creating a counting without a name', async () => {

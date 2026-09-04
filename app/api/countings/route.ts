@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 import { getPrefixLength } from '@/lib/getPrefixLength';
+import { getRequireSku } from '@/lib/getRequireSku';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,9 +29,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_name' }, { status: 400 });
   }
   const prefixLength = await getPrefixLength(db);
+  const requireSku = await getRequireSku(db);
   const [row] = await db
     .insert(countings)
-    .values({ name, prefixLengthUsed: prefixLength, status: 'active' })
+    .values({ name, prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
     .returning();
   return NextResponse.json({ counting: row }, { status: 201 });
 }
