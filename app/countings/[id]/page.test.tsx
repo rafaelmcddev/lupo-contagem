@@ -2,8 +2,20 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CountingPage from './page';
 
+const { decodeFromVideoDevice, stop } = vi.hoisted(() => ({
+  decodeFromVideoDevice: vi.fn(),
+  stop: vi.fn(),
+}));
+
+vi.mock('@zxing/browser', () => ({
+  BrowserMultiFormatReader: vi.fn().mockImplementation(() => ({
+    decodeFromVideoDevice,
+  })),
+}));
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllMocks();
   window.localStorage.clear();
 });
 
@@ -139,6 +151,57 @@ describe('CountingPage', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => expect(screen.getByText('Código inválido — verifique a leitura.')).toBeInTheDocument());
+  });
+
+  it('keeps the camera open across multiple scans, closing only on the close button', async () => {
+    let callback: ((result: { getText: () => string } | undefined) => void) | undefined;
+    decodeFromVideoDevice.mockImplementation((_device: unknown, _video: unknown, cb: typeof callback) => {
+      callback = cb;
+      return Promise.resolve({ stop });
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ duplicate: false, box: { boxNumber: 1, groupName: null, sku: 'CUECA-SLIP-P', total: 3 } }),
+      })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail })
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ duplicate: false, box: { boxNumber: 1, groupName: null, sku: 'CUECA-SLIP-P', total: 4 } }),
+      })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => activeDetail });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CountingPage params={{ id: '1' }} />);
+    await waitFor(() => expect(screen.getByText('Caixa 1')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Usar câmera'));
+    await waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
+
+    callback!({ getText: () => '7891234000011' });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/countings/1/scan',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ barcode: '7891234000011' }) }),
+      ),
+    );
+
+    expect(screen.getByText('Fechar câmera')).toBeInTheDocument();
+
+    callback!({ getText: () => '9999999000011' });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/countings/1/scan',
+        expect.objectContaining({ method: 'POST', body: JSON.stringify({ barcode: '9999999000011' }) }),
+      ),
+    );
+    expect(screen.getByText('Fechar câmera')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Fechar câmera'));
+    expect(screen.queryByText('Fechar câmera')).not.toBeInTheDocument();
   });
 
   it('shows a not-found message when the counting fails to load', async () => {

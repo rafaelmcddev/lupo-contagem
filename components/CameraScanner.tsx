@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 
+const RESCAN_DEBOUNCE_MS = 2000;
+
 export function CameraScanner({ onScan, onClose }: { onScan: (barcode: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const lastScanRef = useRef<{ code: string; time: number } | null>(null);
 
   useEffect(() => {
     const reader = new BrowserMultiFormatReader();
@@ -14,7 +17,13 @@ export function CameraScanner({ onScan, onClose }: { onScan: (barcode: string) =
 
     reader
       .decodeFromVideoDevice(undefined, videoRef.current ?? undefined, (result) => {
-        if (result) onScan(result.getText());
+        if (!result) return;
+        const code = result.getText();
+        const now = Date.now();
+        const last = lastScanRef.current;
+        if (last && last.code === code && now - last.time < RESCAN_DEBOUNCE_MS) return;
+        lastScanRef.current = { code, time: now };
+        onScan(code);
       })
       .then((c) => {
         if (cancelled) {

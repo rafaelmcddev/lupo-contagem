@@ -237,13 +237,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       )}
 
       {isActive && showCamera && (
-        <CameraScanner
-          onScan={(code) => {
-            handleScan(code);
-            setShowCamera(false);
-          }}
-          onClose={() => setShowCamera(false)}
-        />
+        <CameraScanner onScan={handleScan} onClose={() => setShowCamera(false)} />
       )}
 
       <BoxList boxes={detail.boxes} />
