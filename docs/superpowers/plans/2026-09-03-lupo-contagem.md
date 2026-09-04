@@ -3718,6 +3718,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const [syncing, setSyncing] = useState(false);
   const [pendingSkuBarcode, setPendingSkuBarcode] = useState<string | null>(null);
   const [skuInput, setSkuInput] = useState('');
+  const [skuError, setSkuError] = useState<string | null>(null);
   const { announceBox } = useSpeechAnnouncer();
 
   const load = useCallback(async () => {
@@ -3781,6 +3782,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     try {
       const { status, data } = await submitScan(barcode);
       if (status === 422 && data.error === 'sku_required') {
+        setSkuError(null);
         setPendingSkuBarcode(barcode);
         return;
       }
@@ -3799,10 +3801,15 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     if (!pendingSkuBarcode || !skuInput.trim()) return;
     const barcode = pendingSkuBarcode;
     const sku = skuInput.trim();
-    setPendingSkuBarcode(null);
-    setSkuInput('');
     try {
-      const { data } = await submitScan(barcode, sku);
+      const { status, data } = await submitScan(barcode, sku);
+      if (status !== 200) {
+        setSkuError('Não foi possível vincular esse SKU. Tente novamente.');
+        return;
+      }
+      setPendingSkuBarcode(null);
+      setSkuInput('');
+      setSkuError(null);
       if (!data.duplicate && data.box) {
         announceBox(data.box.boxNumber);
       }
@@ -3810,6 +3817,9 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     } catch {
       enqueueScan(countingId, barcode, sku);
       setSyncing(true);
+      setPendingSkuBarcode(null);
+      setSkuInput('');
+      setSkuError(null);
     }
   }
 
@@ -3853,11 +3863,12 @@ export default function CountingPage({ params }: { params: { id: string } }) {
             onChange={(e) => setSkuInput(e.target.value)}
             className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
           />
+          {skuError && <p className="text-lg text-red-600">{skuError}</p>}
           <Button type="submit">Vincular SKU e contar</Button>
         </form>
       )}
 
-      {showCamera && (
+      {isActive && showCamera && (
         <CameraScanner
           onScan={(code) => {
             handleScan(code);
