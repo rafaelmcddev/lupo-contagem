@@ -23,4 +23,14 @@ describe('isDuplicateScan', () => {
     const now = new Date('2026-01-01T10:00:00.100Z');
     expect(isDuplicateScan(last, '123', '456', now)).toBe(false);
   });
+
+  it('is not a duplicate when "now" is earlier than the last scan (out-of-order replay)', () => {
+    // Can happen when a queued offline scan is replayed with its original
+    // scannedAt, but a newer live scan of the same barcode already landed
+    // in the same box in the meantime — without a lower bound this would
+    // otherwise be silently treated as a duplicate and dropped.
+    const last = new Date('2026-01-01T10:00:00.500Z');
+    const now = new Date('2026-01-01T10:00:00.000Z');
+    expect(isDuplicateScan(last, '123', '123', now)).toBe(false);
+  });
 });

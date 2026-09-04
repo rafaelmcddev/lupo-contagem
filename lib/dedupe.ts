@@ -8,5 +8,6 @@ export function isDuplicateScan(
   windowMs: number = DEFAULT_WINDOW_MS,
 ): boolean {
   if (!lastScanAt || lastBarcode !== barcode) return false;
-  return now.getTime() - lastScanAt.getTime() < windowMs;
+  const delta = now.getTime() - lastScanAt.getTime();
+  return delta >= 0 && delta < windowMs;
 }
