@@ -92,19 +92,19 @@ export default function ProductsPage() {
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
           placeholder="Código de barras"
-          className="w-48 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="w-48 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
         <input
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           placeholder="SKU"
-          className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do produto"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
         <Button type="submit">Adicionar</Button>
       </form>
@@ -116,6 +116,7 @@ export default function ProductsPage() {
           </span>
           <input id="csvImport" type="file" accept=".csv" onChange={handleImport} className="hidden" />
         </label>
+        <p className="text-sm text-gray-500">O arquivo CSV deve ter as colunas nome;sku;codebar</p>
         {importSummary && <p className="text-lg text-gray-600">{importSummary}</p>}
       </div>
 
