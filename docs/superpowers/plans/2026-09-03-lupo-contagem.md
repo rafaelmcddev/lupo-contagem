@@ -284,6 +284,25 @@ export const TEST_DATABASE_URL =
 import '@testing-library/jest-dom/vitest';
 ```
 
+**Amendment (added after Task 17's review):** this file also needs `afterEach(cleanup)` from
+`@testing-library/react`, registered globally. This project's `vitest.config.ts` does not set
+`test.globals: true`, so React Testing Library's own automatic-cleanup registration — which
+guards itself on the *global* `afterEach` — never activates; without an explicit cleanup hook,
+a test file with more than one `render()` call sharing a query (e.g. two tests both using
+`getByLabelText('same label')`) accumulates DOM across tests and fails with "found multiple
+elements". Update the file to:
+
+```ts
+import '@testing-library/jest-dom/vitest';
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+afterEach(cleanup);
+```
+
+This makes cleanup automatic for every test file from here on — later component/page test
+files do not need to add their own `afterEach(cleanup)` (harmless if one already does).
+
 - [ ] **Step 12: Write `tests/globalSetup.ts`** (no-op placeholder until Task 3 adds real migrations)
 
 ```ts
