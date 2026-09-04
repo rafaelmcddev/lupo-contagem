@@ -94,6 +94,14 @@ async function findOrRequireSku(db: DbClient, barcode: string, providedSku: stri
   throw new Error('failed_to_link_sku');
 }
 
+/**
+ * Records a scan and returns the box hit and duplicate status.
+ * MUST be called with the pooled db client, never inside an outer transaction.
+ * The retry loops for box creation and SKU linking rely on catching raw Postgres
+ * unique-constraint violations and retrying with a fresh query, which only works
+ * in autocommit mode. Inside a transaction, a unique violation aborts the entire
+ * transaction and subsequent retry queries would fail.
+ */
 export async function recordScan(
   db: DbClient,
   countingId: number,

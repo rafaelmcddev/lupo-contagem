@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { countings, groups, skus } from '@/db/schema';
@@ -86,8 +86,18 @@ describe('recordScan', () => {
     ]);
     expect(a.box?.boxNumber).toBe(1);
     expect(b.box?.boxNumber).toBe(1);
-    const totals = new Set([a.box?.total, b.box?.total]);
-    expect(totals).toEqual(new Set([1, 2]));
+    const finalCount = await db.execute(sql`SELECT COUNT(*)::int AS count FROM scans WHERE box_id = ${a.box!.boxId}`);
+    expect(Number((finalCount as any).rows[0].count)).toBe(2);
+  });
+
+  it('creates two separate boxes when two different new prefixes race for the same box number', async () => {
+    const counting = await createActiveCounting();
+    const [a, b] = await Promise.all([
+      recordScan(db, counting.id, '2222222000001', 'SKU-X'),
+      recordScan(db, counting.id, '3333333000001', 'SKU-Y'),
+    ]);
+    const boxNumbers = new Set([a.box?.boxNumber, b.box?.boxNumber]);
+    expect(boxNumbers).toEqual(new Set([1, 2]));
   });
 
   it('keeps the first-registered SKU when two people link the same new barcode concurrently', async () => {
