@@ -30,7 +30,7 @@ export function enqueueScan(countingId: string, barcode: string, sku?: string): 
 }
 
 export function removeFromQueue(queue: QueuedScan[], toRemove: QueuedScan): QueuedScan[] {
-  const updated = queue.filter((q) => q.queuedAt !== toRemove.queuedAt);
+  const updated = queue.filter((q) => !(q.queuedAt === toRemove.queuedAt && q.barcode === toRemove.barcode));
   saveQueue(updated);
   return updated;
 }
