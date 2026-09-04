@@ -49,15 +49,31 @@ final.
   "Caixa N" (o número, sempre — é o que está escrito na caixa física),
   pra quem está contando só escutar e jogar a peça na caixa certa sem
   precisar olhar a tela.
-- **Vínculo obrigatório código de barras → SKU:** cada código de barras
-  exato pertence a um SKU (uma string), cadastrado manualmente. Ao
-  escanear um código de barras que ainda não tem SKU vinculado, o sistema
-  pausa e pede pra digitar o SKU antes de contar a peça; a partir daí o
-  vínculo fica salvo e as próximas leituras daquele mesmo código já vêm
-  com o SKU automaticamente. O SKU aparece na tela ao lado da caixa, e a
-  contagem também é quebrada por SKU dentro de cada caixa (uma caixa
-  agrupa vários SKUs diferentes — por exemplo, tamanhos/cores distintos
-  do mesmo grupo).
+- **Vínculo código de barras → SKU (nome + SKU), com exigência
+  configurável:** cada código de barras exato pode ter um SKU e um nome
+  de produto vinculados. Numa configuração global (congelada por
+  contagem, como o tamanho do prefixo), o usuário decide se isso é
+  **obrigatório** (padrão, comportamento original) ou **opcional**:
+  - **Obrigatório (ligado):** ao escanear um código sem SKU vinculado,
+    o sistema pausa e pede o SKU antes de contar a peça — como já
+    funcionava.
+  - **Opcional (desligado):** um código sem vínculo é contado
+    normalmente, sem parar pra perguntar nada; a peça aparece na caixa
+    como "Sem SKU".
+  Em ambos os casos, se o código já tem um vínculo cadastrado (seja
+  criado na hora de bipar, seja pré-cadastrado na tela **Produtos**), o
+  SKU (e nome, se tiver) aparecem direto, sem perguntar nada. A contagem
+  é sempre quebrada por SKU dentro de cada caixa (uma caixa agrupa
+  vários SKUs diferentes — por exemplo, tamanhos/cores distintos do
+  mesmo grupo — incluindo, quando aplicável, um grupo "Sem SKU").
+- **Cadastro de produtos (tela própria):** além de vincular um SKU na
+  hora de bipar, o usuário pode pré-cadastrar produtos (código de
+  barras + SKU + nome) numa tela dedicada — adicionar, editar e remover
+  — para que já apareçam reconhecidos assim que forem bipados pela
+  primeira vez.
+- **Importação de produtos por CSV:** na tela de Produtos, um botão
+  permite importar um arquivo `.csv` com várias linhas de uma vez (ex:
+  antes de uma entrega grande), em vez de cadastrar um por um.
 - **Ao final:** ver totais na tela, exportar/compartilhar (CSV e texto
   pronto pra WhatsApp) e manter histórico de contagens finalizadas.
 
@@ -81,20 +97,28 @@ final.
    quando cadastrado, com quebra por SKU dentro de cada caixa) com
    contagem atualizada em tempo real, anúncio por voz "Caixa N" a cada
    leitura válida, botão **"Finalizar contagem"**. Quando um código de
-   barras sem SKU vinculado é lido, um campo aparece pedindo o SKU antes
-   de contar a peça.
+   barras sem SKU vinculado é lido e a contagem exige SKU, um campo
+   aparece pedindo o SKU antes de contar a peça; com a exigência
+   desligada, a peça é contada direto como "Sem SKU".
 3. **Resumo** — tabela Caixa × Quantidade + total geral da contagem
    (mostrando o nome do grupo ao lado do número quando cadastrado, e a
-   quebra por SKU dentro de cada caixa); botões para exportar CSV e gerar
-   texto de WhatsApp. Usada tanto logo após finalizar quanto ao abrir o
-   detalhe de uma contagem no Histórico.
+   quebra por SKU dentro de cada caixa, incluindo "Sem SKU" quando
+   aplicável); botões para exportar CSV e gerar texto de WhatsApp. Usada
+   tanto logo após finalizar quanto ao abrir o detalhe de uma contagem no
+   Histórico.
 4. **Histórico** — lista de contagens já finalizadas (nome, data, total),
    abre o Resumo daquela contagem.
-5. **Configurações** — campo numérico para o tamanho do prefixo (dígitos),
-   valor usado como padrão em toda nova contagem criada dali em diante.
+5. **Configurações** — campo numérico para o tamanho do prefixo (dígitos)
+   e um checkbox "Exigir SKU ao bipar"; ambos usados como padrão em toda
+   nova contagem criada dali em diante (congelados na contagem no momento
+   da criação).
 6. **Grupos** — catálogo opcional de prefixo → nome: lista os cadastrados,
    formulário pra adicionar/editar/remover. Independente de qualquer
    contagem específica (é um catálogo global e persistente).
+7. **Produtos** — catálogo de código de barras exato → SKU + nome: lista
+   os cadastrados, formulário pra adicionar/editar/remover um por vez, e
+   um botão pra importar vários de uma vez por arquivo `.csv`.
+   Independente de qualquer contagem específica.
 
 ## Design visual e UX
 
@@ -127,6 +151,7 @@ countings
   started_at         timestamp
   finished_at        timestamp null
   prefix_length_used int             -- congelado no momento da criação
+  require_sku_used   boolean         -- congelado no momento da criação
   status             enum('active','finished')
 
 boxes
@@ -144,7 +169,7 @@ scans
 
 settings
   key    text pk
-  value  text     -- inclui "prefix_length" (padrão global atual)
+  value  text     -- inclui "prefix_length" e "require_sku" (padrões globais)
 
 groups
   id          pk
@@ -153,8 +178,12 @@ groups
   created_at  timestamp
 
 skus
-  barcode     text pk    -- código de barras EXATO (não prefixo)
+  barcode     text pk         -- código de barras EXATO (não prefixo)
   sku         text not null
+  name        text null       -- nome do produto; pode ficar em branco
+                               -- quando o vínculo nasce só do "digitar o
+                               -- SKU" na hora de bipar (essa tela não
+                               -- pede nome, só a tela Produtos pede)
   created_at  timestamp
 ```
 
@@ -176,18 +205,26 @@ global não invalida cadastros já feitos.
 `skus` é diferente de `groups` em uma forma importante: a chave é o código
 de barras **exato** (não um prefixo), porque cada variação de
 tamanho/cor tem seu próprio código de barras único, e cada código
-pertence a exatamente um SKU. Ao contrário do nome de grupo (opcional),
-o vínculo com SKU é **obrigatório**: uma linha só é inserida em `scans`
-depois que o código de barras escaneado já tem (ou acabou de ganhar) uma
-linha correspondente em `skus`. Isso garante um invariante simples: toda
-`scans.barcode` sempre tem uma `skus.barcode` correspondente, então a
-quebra por SKU de uma caixa é um `INNER JOIN scans → skus` direto, sem
-necessidade de tratar casos "sem SKU".
+pertence a exatamente um SKU/produto.
+
+Diferente da primeira versão, o vínculo com SKU **não é mais sempre
+obrigatório** — depende de `countings.require_sku_used`, congelado por
+contagem a partir de `settings.require_sku` (padrão: `true`, preservando
+o comportamento original). Quando obrigatório, uma linha só é inserida em
+`scans` depois que o código já tem (ou acabou de ganhar) uma linha
+correspondente em `skus` — como antes. Quando **não** obrigatório, um
+código sem vínculo em `skus` é aceito e contado mesmo assim; a linha em
+`scans` é gravada normalmente, só que sem uma `skus` correspondente. Isso
+significa que a quebra por SKU de uma caixa deixa de poder assumir que
+toda `scans.barcode` tem uma `skus.barcode` — a consulta usa `LEFT JOIN
+scans → skus`, e um `sku` nulo no resultado vira o grupo "Sem SKU" na
+exibição (mesmo tratamento visual que um grupo sem nome cadastrado).
 
 ## Fluxo de contagem e API
 
 - `POST /api/countings` `{name}` — cria contagem (`status=active`,
-  congela `prefix_length_used` a partir de `settings.prefix_length`).
+  congela `prefix_length_used` a partir de `settings.prefix_length` e
+  `require_sku_used` a partir de `settings.require_sku`).
 - `GET /api/countings?status=active` — lista contagens abertas, para a
   tela de Início.
 - `GET /api/countings?status=finished` — lista para o Histórico.
@@ -199,13 +236,18 @@ necessidade de tratar casos "sem SKU".
   2. Extrai o prefixo (`prefix_length_used` primeiros dígitos).
   3. Busca a última leitura da caixa candidata; se o mesmo `barcode` foi
      lido há menos de 1s, ignora (retorna "duplicado ignorado").
-  4. Busca o SKU vinculado a esse `barcode` exato em `skus`. Se não
-     existir: sem `sku` no corpo da requisição → retorna erro
-     "sku_required" (nada é gravado, a UI deve pedir o SKU e reenviar);
-     com `sku` no corpo → cadastra o vínculo (upsert atômico por
-     `barcode`, mesmo padrão de constraint única + retry das caixas, para
-     suportar duas pessoas cadastrando o mesmo código novo ao mesmo
-     tempo) e segue.
+  4. Busca o SKU vinculado a esse `barcode` exato em `skus`. Se
+     existir, usa o que já está cadastrado (não precisa de `sku` no
+     corpo). Se **não** existir:
+     - com `sku` no corpo → cadastra o vínculo (upsert atômico por
+       `barcode`, mesmo padrão de constraint única + retry das caixas,
+       para suportar duas pessoas cadastrando o mesmo código novo ao
+       mesmo tempo) e segue;
+     - sem `sku` no corpo e `require_sku_used = true` → retorna erro
+       "sku_required" (nada é gravado, a UI deve pedir o SKU e
+       reenviar);
+     - sem `sku` no corpo e `require_sku_used = false` → segue sem
+       vincular SKU (a peça é contada como "Sem SKU").
   5. Upsert atômico da `box` por `(counting_id, prefix)` — se não existir,
      cria com o próximo `box_number` sequencial (usando uma constraint
      única + retry, para suportar múltiplas pessoas escaneando na mesma
@@ -213,17 +255,44 @@ necessidade de tratar casos "sem SKU".
      grupo).
   6. Insere a linha em `scans`.
   7. Retorna a caixa atingida (número + nome do grupo, se houver
-     correspondência em `groups`, + o SKU resolvido) e seu total
-     atualizado.
+     correspondência em `groups`, + o SKU resolvido, que pode ser nulo)
+     e seu total atualizado.
 - `POST /api/countings/:id/finish` — marca `finished_at`/`status=finished`;
   se não houver nenhum scan, o cliente pede confirmação antes de chamar
   (a API permite finalizar mesmo vazia).
-- `GET /api/settings` / `PUT /api/settings` — ler/gravar `prefix_length`.
+- `GET /api/settings` / `PUT /api/settings` — ler/gravar `prefix_length`
+  e `require_sku`.
 - `GET /api/groups` — lista o catálogo de grupos cadastrados.
 - `POST /api/groups` `{prefix, name}` / `PUT /api/groups/:id` /
   `DELETE /api/groups/:id` — cadastrar, renomear ou remover um grupo.
   `GET /api/countings/:id` também resolve e inclui o nome do grupo de
   cada caixa na resposta (mesma lógica de prefixo mais específico).
+- `GET /api/products` — lista o catálogo de produtos cadastrados
+  (código de barras, SKU, nome).
+- `POST /api/products` `{barcode, sku, name}` / `PUT /api/products/:barcode`
+  `{sku, name}` / `DELETE /api/products/:barcode` — cadastrar, editar ou
+  remover um produto. Cadastrar com um `barcode` já existente é rejeitado
+  (use `PUT` pra editar).
+- `POST /api/products/import` `{csv: string}` — importa várias linhas de
+  uma vez a partir do conteúdo de um arquivo `.csv` (formato descrito
+  abaixo). Para cada linha válida, cadastra o produto se o código de
+  barras for novo, ou **sobrescreve** SKU e nome se o código já existir.
+  Linhas invalidas (código de barras vazio/não numérico, SKU ou nome em
+  branco) são ignoradas e reportadas. Retorna um resumo: quantas linhas
+  foram criadas, quantas atualizadas, e quais foram ignoradas (com o
+  número da linha e o motivo).
+
+### Formato do arquivo de importação de produtos
+
+CSV separado por **ponto e vírgula** (`;`), com uma linha de cabeçalho
+obrigatória contendo as colunas `nome`, `sku` e `codebar` — em qualquer
+ordem, reconhecidas pelo nome (case-insensitive), não pela posição:
+
+```
+nome;sku;codebar
+Cueca Slip Preta P;CUECA-SLIP-P;7891234000011
+Cueca Slip Preta M;CUECA-SLIP-M;7891234000028
+```
 
 ### Entrada de leitura
 
@@ -235,10 +304,12 @@ necessidade de tratar casos "sem SKU".
   leitor físico.
 - **Feedback em tempo real:** a cada scan bem-sucedido, a UI atualiza
   otimisticamente (ex: "Caixa 3 → 15", ou "Caixa 3 — Cueca Slip Preta →
-  15" quando há grupo cadastrado) mostrando também o SKU da peça lida, e
-  confirma com a resposta do servidor. Quando a resposta indica
-  "sku_required", a UI mostra um campo pedindo o SKU daquele código antes
-  de reenviar o mesmo scan (agora com o SKU preenchido).
+  15" quando há grupo cadastrado) mostrando também o SKU da peça lida (ou
+  "Sem SKU" quando não houver um vinculado e a exigência estiver
+  desligada), e confirma com a resposta do servidor. Quando a resposta
+  indica "sku_required" (só possível com a exigência ligada), a UI mostra
+  um campo pedindo o SKU daquele código antes de reenviar o mesmo scan
+  (agora com o SKU preenchido).
 - **Feedback sonoro:** a cada scan bem-sucedido (não em duplicatas
   ignoradas nem em códigos inválidos), o navegador anuncia por voz
   "Caixa N" via `SpeechSynthesis` (Web Speech API nativa, PT-BR,
@@ -269,13 +340,25 @@ necessidade de tratar casos "sem SKU".
 - **Prefixo de grupo duplicado/conflitante:** a constraint `UNIQUE` em
   `groups.prefix` impede cadastrar o mesmo prefixo duas vezes; ao editar,
   a mesma validação se aplica.
-- **Código de barras sem SKU vinculado:** o scan não é gravado até que um
-  SKU seja informado; a UI trata isso como um passo extra do fluxo de
-  leitura, não como um erro bloqueante.
+- **Código de barras sem SKU vinculado, com exigência ligada:** o scan
+  não é gravado até que um SKU seja informado; a UI trata isso como um
+  passo extra do fluxo de leitura, não como um erro bloqueante. Com a
+  exigência desligada, não há erro nenhum — a peça é contada como "Sem
+  SKU".
 - **Corrida entre duas pessoas cadastrando SKU pro mesmo código novo ao
   mesmo tempo:** resolvida pela chave primária `skus.barcode` + upsert
   atômico com retry — o primeiro SKU gravado vence, a segunda requisição
   reaproveita esse valor (mesmo padrão usado para a criação de caixas).
+- **Cadastro de produto com código de barras já existente (tela
+  Produtos):** rejeitado no `POST` (use `PUT` pra editar); a constraint
+  `UNIQUE`/PK em `skus.barcode` garante isso no banco também.
+- **Linha inválida na importação de CSV** (código de barras vazio ou não
+  numérico, SKU ou nome em branco, coluna faltando): aquela linha é
+  ignorada, sem interromper a importação das demais; o resumo final
+  reporta quantas linhas foram ignoradas e por quê.
+- **Arquivo de CSV sem as colunas esperadas ou vazio:** erro claro antes
+  de processar qualquer linha ("arquivo inválido, verifique o
+  cabeçalho").
 
 ## Testes
 
@@ -286,10 +369,16 @@ necessidade de tratar casos "sem SKU".
 - **Integração de API:** contra banco de teste — criar contagem → scans →
   finish → resumo bate com o esperado; teste de concorrência simulando
   dois scans simultâneos do mesmo prefixo novo (deve gerar uma única
-  caixa); scan de um código sem SKU retorna "sku_required" e não grava
-  nada; reenvio com `sku` cadastra o vínculo e grava o scan; scan
-  subsequente do mesmo código já vem com o SKU automaticamente; resumo de
-  uma caixa com múltiplos SKUs mostra a quebra correta por SKU.
+  caixa); com exigência de SKU ligada, scan de um código sem SKU retorna
+  "sku_required" e não grava nada, reenvio com `sku` cadastra o vínculo e
+  grava o scan, scan subsequente do mesmo código já vem com o SKU
+  automaticamente; com exigência desligada, scan de um código sem SKU é
+  aceito e aparece como "Sem SKU"; resumo de uma caixa com múltiplos SKUs
+  (incluindo "Sem SKU") mostra a quebra correta; CRUD de produtos
+  (criar/editar/remover, rejeitar código de barras duplicado); importação
+  de CSV cria produtos novos, sobrescreve os que já existem por código de
+  barras, ignora e reporta linhas inválidas, e rejeita um arquivo sem as
+  colunas esperadas.
 - **Manual/E2E:** via skill `run`; simular o leitor físico digitando no
   campo (sem hardware real) e testar a leitura por câmera com um código
   impresso.
@@ -299,9 +388,7 @@ necessidade de tratar casos "sem SKU".
 - Edição/merge manual de caixas durante a contagem.
 - Autenticação/autorização.
 - Importação em massa de catálogo de grupos (ex: planilha) — cadastro é
-  manual, um grupo por vez, pela tela Grupos.
-- Edição ou remoção posterior de um vínculo código de barras → SKU já
-  cadastrado (o vínculo é criado uma vez, na primeira leitura daquele
-  código, e não muda depois nesta versão).
+  manual, um grupo por vez, pela tela Grupos (a importação em massa
+  existe só para Produtos).
 - Uso 100% offline (PWA completo) — fila local cobre instabilidade
   pontual de rede, não operação totalmente offline.
