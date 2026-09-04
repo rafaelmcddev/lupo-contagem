@@ -66,14 +66,23 @@ export default function HomePage() {
       </div>
 
       <div className="mt-8 flex gap-4">
-        <Link href="/history">
-          <Button variant="secondary">Histórico</Button>
+        <Link
+          href="/history"
+          className="rounded-xl bg-gray-100 px-6 py-4 text-xl font-semibold text-ink transition-colors hover:bg-gray-200"
+        >
+          Histórico
         </Link>
-        <Link href="/settings">
-          <Button variant="secondary">Configurações</Button>
+        <Link
+          href="/settings"
+          className="rounded-xl bg-gray-100 px-6 py-4 text-xl font-semibold text-ink transition-colors hover:bg-gray-200"
+        >
+          Configurações
         </Link>
-        <Link href="/groups">
-          <Button variant="secondary">Grupos</Button>
+        <Link
+          href="/groups"
+          className="rounded-xl bg-gray-100 px-6 py-4 text-xl font-semibold text-ink transition-colors hover:bg-gray-200"
+        >
+          Grupos
         </Link>
       </div>
     </main>
