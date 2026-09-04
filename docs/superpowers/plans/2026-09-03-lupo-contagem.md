@@ -258,9 +258,16 @@ export default defineConfig({
     setupFiles: ['./tests/setupMatchers.ts'],
     env: { DATABASE_URL: TEST_DATABASE_URL },
     globalSetup: ['./tests/globalSetup.ts'],
+    fileParallelism: false,
   },
 });
 ```
+
+`fileParallelism: false` is required because most test files in this project hit one real
+local Postgres instance and reset it with `TRUNCATE ... RESTART IDENTITY CASCADE` in
+`beforeEach` — Vitest's default parallel file execution would let two DB-touching files
+race against that shared database (one file's truncate landing mid-assertion of another),
+which is a real, reproducible flake, not a hypothetical one.
 
 `jsdom` is used for every test file, including the Postgres-backed integration tests — it only adds browser globals (`window`, `localStorage`, etc.) on top of Node, so `pg`/Drizzle network calls are unaffected.
 
