@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const countingStatus = pgEnum('counting_status', ['active', 'finished']);
 
@@ -8,6 +8,7 @@ export const countings = pgTable('countings', {
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
   prefixLengthUsed: integer('prefix_length_used').notNull(),
+  requireSkuUsed: boolean('require_sku_used').notNull().default(true),
   status: countingStatus('status').notNull().default('active'),
 });
 
@@ -47,5 +48,6 @@ export const groups = pgTable('groups', {
 export const skus = pgTable('skus', {
   barcode: text('barcode').primaryKey(),
   sku: text('sku').notNull(),
+  name: text('name'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

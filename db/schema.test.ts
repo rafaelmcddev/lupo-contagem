@@ -23,10 +23,19 @@ describe('schema', () => {
 
     const found = await db.select().from(countings).where(eq(countings.id, counting.id));
     expect(found[0].name).toBe('Teste');
+    expect(found[0].requireSkuUsed).toBe(true);
 
     await expect(
       db.insert(boxes).values({ countingId: counting.id, boxNumber: 2, prefix: '7891234' }),
     ).rejects.toThrow();
+  });
+
+  it('can create a counting with requireSkuUsed explicitly false', async () => {
+    const [counting] = await db
+      .insert(countings)
+      .values({ name: 'Teste', prefixLengthUsed: 7, requireSkuUsed: false, status: 'active' })
+      .returning();
+    expect(counting.requireSkuUsed).toBe(false);
   });
 
   it('enforces a unique prefix on groups', async () => {
@@ -46,13 +55,20 @@ describe('schema', () => {
     expect(row[0].value).toBe('8');
   });
 
-  it('links an exact barcode to a SKU, keyed by the barcode itself', async () => {
+  it('links an exact barcode to a SKU, keyed by the barcode itself, with an optional name', async () => {
     await db.insert(skus).values({ barcode: '7891234000011', sku: 'CUECA-SLIP-P' });
     const row = await db.select().from(skus).where(eq(skus.barcode, '7891234000011'));
     expect(row[0].sku).toBe('CUECA-SLIP-P');
+    expect(row[0].name).toBeNull();
 
     await expect(
       db.insert(skus).values({ barcode: '7891234000011', sku: 'OUTRO-SKU' }),
     ).rejects.toThrow();
+  });
+
+  it('accepts a name when linking a SKU', async () => {
+    await db.insert(skus).values({ barcode: '7891234999999', sku: 'CUECA-SLIP-M', name: 'Cueca Slip Preta M' });
+    const row = await db.select().from(skus).where(eq(skus.barcode, '7891234999999'));
+    expect(row[0].name).toBe('Cueca Slip Preta M');
   });
 });
