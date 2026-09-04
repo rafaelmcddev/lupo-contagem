@@ -4,6 +4,7 @@ import CountingPage from './page';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
 });
 
 const activeDetail = {
@@ -104,5 +105,22 @@ describe('CountingPage', () => {
 
     await waitFor(() => expect(screen.getByText('Exportar CSV')).toBeInTheDocument());
     expect(screen.queryByLabelText('Campo de leitura de código de barras')).not.toBeInTheDocument();
+  });
+
+  it('queues a scan and shows a syncing indicator when the network request fails', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 200, json: async () => activeDetail })
+      .mockRejectedValueOnce(new Error('network error'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CountingPage params={{ id: '1' }} />);
+    await waitFor(() => expect(screen.getByText('Caixa 1')).toBeInTheDocument());
+
+    const input = screen.getByLabelText('Campo de leitura de código de barras');
+    fireEvent.change(input, { target: { value: '7891234000011' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByText(/Sincronizando/)).toBeInTheDocument());
   });
 });

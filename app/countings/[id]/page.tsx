@@ -8,6 +8,7 @@ import { ExportButtons } from '@/components/ExportButtons';
 import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
+import { enqueueScan, loadQueue, removeFromQueue } from '@/lib/scanQueue';
 
 interface CountingDetail {
   counting: { id: number; name: string; status: 'active' | 'finished' };
@@ -19,6 +20,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const countingId = params.id;
   const [detail, setDetail] = useState<CountingDetail | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [pendingSkuBarcode, setPendingSkuBarcode] = useState<string | null>(null);
   const [skuInput, setSkuInput] = useState('');
   const [skuError, setSkuError] = useState<string | null>(null);
@@ -50,17 +52,53 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     return { status: res.status, data };
   }
 
-  async function handleScan(barcode: string) {
-    const { status, data } = await submitScan(barcode);
-    if (status === 422 && data.error === 'sku_required') {
-      setPendingSkuBarcode(barcode);
-      setSkuError(null);
-      return;
+  const flushQueue = useCallback(async () => {
+    const queued = loadQueue().filter((q) => q.countingId === countingId);
+    if (queued.length === 0) return;
+    setSyncing(true);
+    for (const item of queued) {
+      try {
+        const { status, data } = await submitScan(item.barcode, item.sku);
+        removeFromQueue(loadQueue(), item);
+        if (status === 422 && data.error === 'sku_required') {
+          setPendingSkuBarcode(item.barcode);
+          break;
+        }
+      } catch {
+        break;
+      }
     }
-    if (!data.duplicate && data.box) {
-      announceBox(data.box.boxNumber);
-    }
+    setSyncing(loadQueue().filter((q) => q.countingId === countingId).length > 0);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countingId, load]);
+
+  useEffect(() => {
+    flushQueue();
+    window.addEventListener('online', flushQueue);
+    const interval = setInterval(flushQueue, 5000);
+    return () => {
+      window.removeEventListener('online', flushQueue);
+      clearInterval(interval);
+    };
+  }, [flushQueue]);
+
+  async function handleScan(barcode: string) {
+    try {
+      const { status, data } = await submitScan(barcode);
+      if (status === 422 && data.error === 'sku_required') {
+        setSkuError(null);
+        setPendingSkuBarcode(barcode);
+        return;
+      }
+      if (!data.duplicate && data.box) {
+        announceBox(data.box.boxNumber);
+      }
+      load();
+    } catch {
+      enqueueScan(countingId, barcode);
+      setSyncing(true);
+    }
   }
 
   async function handleSkuSubmit(e: React.FormEvent) {
@@ -68,18 +106,26 @@ export default function CountingPage({ params }: { params: { id: string } }) {
     if (!pendingSkuBarcode || !skuInput.trim()) return;
     const barcode = pendingSkuBarcode;
     const sku = skuInput.trim();
-    const { status, data } = await submitScan(barcode, sku);
-    if (status !== 200) {
-      setSkuError('Não foi possível vincular esse SKU. Tente novamente.');
-      return;
+    try {
+      const { status, data } = await submitScan(barcode, sku);
+      if (status !== 200) {
+        setSkuError('Não foi possível vincular esse SKU. Tente novamente.');
+        return;
+      }
+      setPendingSkuBarcode(null);
+      setSkuInput('');
+      setSkuError(null);
+      if (!data.duplicate && data.box) {
+        announceBox(data.box.boxNumber);
+      }
+      load();
+    } catch {
+      enqueueScan(countingId, barcode, sku);
+      setSyncing(true);
+      setPendingSkuBarcode(null);
+      setSkuInput('');
+      setSkuError(null);
     }
-    setPendingSkuBarcode(null);
-    setSkuInput('');
-    setSkuError(null);
-    if (!data.duplicate && data.box) {
-      announceBox(data.box.boxNumber);
-    }
-    load();
   }
 
   async function handleFinish() {
@@ -98,6 +144,8 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   return (
     <main className="mx-auto max-w-4xl p-8">
       <PageHeading>{detail.counting.name}</PageHeading>
+
+      {syncing && <p className="mb-4 text-lg text-amber-600">Sincronizando leituras pendentes...</p>}
 
       {isActive && (
         <div className="mb-8 flex flex-col gap-4">
