@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
@@ -29,6 +29,8 @@ export default function ProductsPage() {
   const [editSku, setEditSku] = useState('');
   const [editName, setEditName] = useState('');
   const [importSummary, setImportSummary] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -58,16 +60,27 @@ export default function ProductsPage() {
 
   async function addProduct(e: React.FormEvent) {
     e.preventDefault();
-    if (!barcode.trim() || !sku.trim() || !name.trim()) return;
-    await fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barcode, sku, name }),
-    });
-    setBarcode('');
-    setSku('');
-    setName('');
-    load();
+    if (savingRef.current) return;
+    const trimmedBarcode = barcode.trim();
+    const trimmedSku = sku.trim();
+    const trimmedName = name.trim();
+    if (!trimmedBarcode || !trimmedSku || !trimmedName) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode: trimmedBarcode, sku: trimmedSku, name: trimmedName }),
+      });
+      setBarcode('');
+      setSku('');
+      setName('');
+      load();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   function startEdit(product: Product) {
@@ -132,7 +145,9 @@ export default function ProductsPage() {
           placeholder="Nome do produto"
           className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
-        <Button type="submit">Adicionar</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Adicionando...' : 'Adicionar'}
+        </Button>
       </form>
 
       <div className="mb-8 flex flex-col gap-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
@@ -15,6 +15,8 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [prefix, setPrefix] = useState('');
   const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   async function load() {
     const res = await fetch('/api/groups');
@@ -28,15 +30,25 @@ export default function GroupsPage() {
 
   async function addGroup(e: React.FormEvent) {
     e.preventDefault();
-    if (!prefix.trim() || !name.trim()) return;
-    await fetch('/api/groups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prefix, name }),
-    });
-    setPrefix('');
-    setName('');
-    load();
+    if (savingRef.current) return;
+    const trimmedPrefix = prefix.trim();
+    const trimmedName = name.trim();
+    if (!trimmedPrefix || !trimmedName) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: trimmedPrefix, name: trimmedName }),
+      });
+      setPrefix('');
+      setName('');
+      load();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   async function removeGroup(id: number) {
@@ -52,15 +64,17 @@ export default function GroupsPage() {
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
           placeholder="Prefixo"
-          className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl sm:w-40"
+          className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm sm:w-40"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do grupo"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
         />
-        <Button type="submit">Adicionar</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Adicionando...' : 'Adicionar'}
+        </Button>
       </form>
       <div className="grid gap-4">
         {groups.map((g) => (

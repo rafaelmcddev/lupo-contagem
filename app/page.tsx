@@ -24,6 +24,8 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,14 +62,26 @@ export default function HomePage() {
 
   async function createCounting(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
-    await fetch('/api/countings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    setName('');
-    loadActive();
+    // Guards against double-submit (e.g. a fast double-tap on mobile, which
+    // otherwise fires two POSTs before the first response updates state and
+    // disables the button) creating two identical countings.
+    if (creatingRef.current) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    creatingRef.current = true;
+    setCreating(true);
+    try {
+      await fetch('/api/countings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      setName('');
+      loadActive();
+    } finally {
+      creatingRef.current = false;
+      setCreating(false);
+    }
   }
 
   async function handleXmlSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -108,7 +122,9 @@ export default function HomePage() {
             placeholder="Nome da contagem (ex: contagem geral da loja)"
             className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
           />
-          <Button type="submit">Contagem manual</Button>
+          <Button type="submit" disabled={creating}>
+            {creating ? 'Criando...' : 'Contagem manual'}
+          </Button>
         </form>
         <Button
           type="button"

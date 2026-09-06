@@ -25,7 +25,7 @@ export function BarcodeInput({ onScan, disabled = false }: { onScan: (barcode: s
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={() => !disabled && inputRef.current?.focus()}
-      className="w-full rounded-xl border-2 border-accent px-5 py-4 text-xl font-mono tracking-wide focus:outline-none focus:ring-2 focus:ring-accent/40"
+      className="w-full rounded-xl border-2 border-accent px-5 py-4 text-xl font-mono tracking-wide placeholder:font-sans placeholder:text-lg focus:outline-none focus:ring-2 focus:ring-accent/40"
       placeholder="Aponte o leitor e escaneie"
       aria-label="Campo de leitura de código de barras"
     />
