@@ -2,10 +2,25 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 const NO_READ_RESET_MS = 1000;
 const PULSE_DURATION_MS = 500;
 const BOX_BANNER_DURATION_MS = 2800;
+
+// Retail products use EAN-13/EAN-8/UPC-A/UPC-E (all have a real check digit)
+// and, occasionally, Code128 for internal labels. Formats like Code 39,
+// Codabar and ITF have weak or no checksums and are the ones most prone to
+// "phantom" reads — decoding noise from motion blur or a partial/reflected
+// pattern as a fake-but-valid-looking barcode while the camera moves.
+// Restricting to what products actually use cuts that false-positive rate
+// dramatically without losing any real barcode.
+const HINTS = new Map([
+  [
+    DecodeHintType.POSSIBLE_FORMATS,
+    [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.CODE_128],
+  ],
+]);
 
 export interface CameraFeedback {
   /** Increment this on every server-confirmed scan to (re)trigger the banner. */
@@ -64,7 +79,7 @@ export function CameraScanner({
   }, [feedback]);
 
   useEffect(() => {
-    const reader = new BrowserMultiFormatReader();
+    const reader = new BrowserMultiFormatReader(HINTS);
     let controls: { stop: () => void } | undefined;
     let cancelled = false;
 

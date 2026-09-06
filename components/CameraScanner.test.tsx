@@ -1,17 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { CameraScanner } from './CameraScanner';
 
-const { decodeFromVideoDevice, stop } = vi.hoisted(() => ({
+const { decodeFromVideoDevice, stop, readerConstructor } = vi.hoisted(() => ({
   decodeFromVideoDevice: vi.fn(),
   stop: vi.fn(),
+  readerConstructor: vi.fn(),
 }));
 
 vi.mock('@zxing/browser', () => ({
-  BrowserMultiFormatReader: vi.fn().mockImplementation(() => ({
-    decodeFromVideoDevice,
-  })),
+  BrowserMultiFormatReader: vi.fn().mockImplementation((...args: unknown[]) => {
+    readerConstructor(...args);
+    return { decodeFromVideoDevice };
+  }),
 }));
 
 afterEach(() => {
@@ -161,6 +164,23 @@ describe('CameraScanner', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('restricts decoding to checksum-validated retail formats, to avoid phantom reads from camera noise', async () => {
+    decodeFromVideoDevice.mockImplementation(() => Promise.resolve({ stop }));
+    render(<CameraScanner onScan={() => {}} onClose={() => {}} />);
+    await waitFor(() => expect(readerConstructor).toHaveBeenCalled());
+
+    const hints = readerConstructor.mock.calls[0][0] as Map<unknown, unknown>;
+    const formats = hints.get(DecodeHintType.POSSIBLE_FORMATS) as BarcodeFormat[];
+    expect(formats).toEqual(
+      expect.arrayContaining([BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]),
+    );
+    // Weak/checksum-less 1D formats are the ones most prone to decoding
+    // noise as a fake barcode while the camera is in motion — must stay out.
+    expect(formats).not.toContain(BarcodeFormat.CODE_39);
+    expect(formats).not.toContain(BarcodeFormat.CODABAR);
+    expect(formats).not.toContain(BarcodeFormat.ITF);
   });
 
   it('shows the box number in large text when feedback carries a boxNumber', async () => {
