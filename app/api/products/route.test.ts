@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
+import { settings } from '@/db/schema';
+import { REQUIRE_SKU_KEY } from '@/lib/getRequireSku';
 import { resetDb } from '@/tests/resetDb';
 import { GET, POST } from './route';
 
@@ -80,11 +83,30 @@ describe('/api/products', () => {
     expect(res.status).toBe(409);
   });
 
-  it('rejects an empty barcode, sku, or name', async () => {
+  it('rejects an empty barcode or name regardless of the require-SKU setting', async () => {
     const res = await POST(
       new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '', sku: 'A', name: 'A' }) }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty sku when "Exigir SKU" is on (the default)', async () => {
+    const res = await POST(
+      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '1', sku: '', name: 'A' }) }),
+    );
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('sku_required');
+  });
+
+  it('allows an empty sku when "Exigir SKU" is off', async () => {
+    await db.insert(settings).values({ key: REQUIRE_SKU_KEY, value: 'false' });
+    const res = await POST(
+      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '78947467', sku: '', name: 'Produto qualquer' }) }),
+    );
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.product).toMatchObject({ barcode: '78947467', sku: null, name: 'Produto qualquer' });
   });
 
   it('rejects malformed JSON', async () => {

@@ -8,7 +8,7 @@ import { Pagination } from '@/components/ui/Pagination';
 
 interface Product {
   barcode: string;
-  sku: string;
+  sku: string | null;
   name: string | null;
 }
 
@@ -30,6 +30,8 @@ export default function ProductsPage() {
   const [editName, setEditName] = useState('');
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const savingRef = useRef(false);
 
   useEffect(() => {
@@ -64,19 +66,39 @@ export default function ProductsPage() {
     const trimmedBarcode = barcode.trim();
     const trimmedSku = sku.trim();
     const trimmedName = name.trim();
-    if (!trimmedBarcode || !trimmedSku || !trimmedName) return;
+    // SKU is only mandatory when "Exigir SKU" is on in Configurações — the
+    // server is the source of truth for that, so it's left to validate it;
+    // barcode and name are always required regardless of that setting.
+    if (!trimmedBarcode || !trimmedName) {
+      setFormError('Preencha ao menos o código de barras e o nome.');
+      return;
+    }
+    setFormError(null);
     savingRef.current = true;
     setSaving(true);
     try {
-      await fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ barcode: trimmedBarcode, sku: trimmedSku, name: trimmedName }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFormError(
+          data.error === 'barcode_already_registered'
+            ? 'Esse código de barras já está cadastrado.'
+            : data.error === 'sku_required'
+              ? 'SKU é obrigatório (a opção "Exigir SKU" está ativada em Configurações).'
+              : 'Não foi possível cadastrar o produto. Tente novamente.',
+        );
+        return;
+      }
       setBarcode('');
       setSku('');
       setName('');
       load();
+    } catch {
+      setFormError('Falha de conexão. Verifique sua internet e tente novamente.');
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -85,19 +107,30 @@ export default function ProductsPage() {
 
   function startEdit(product: Product) {
     setEditingBarcode(product.barcode);
-    setEditSku(product.sku);
+    setEditSku(product.sku ?? '');
     setEditName(product.name ?? '');
+    setEditError(null);
   }
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingBarcode) return;
-    await fetch(`/api/products/${editingBarcode}`, {
+    const res = await fetch(`/api/products/${editingBarcode}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sku: editSku, name: editName }),
+      body: JSON.stringify({ sku: editSku.trim(), name: editName.trim() }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditError(
+        data.error === 'sku_required'
+          ? 'SKU é obrigatório (a opção "Exigir SKU" está ativada em Configurações).'
+          : 'Não foi possível salvar. Preencha ao menos o nome.',
+      );
+      return;
+    }
     setEditingBarcode(null);
+    setEditError(null);
     load();
   }
 
@@ -126,7 +159,7 @@ export default function ProductsPage() {
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
       <PageHeading>Produtos</PageHeading>
 
-      <form onSubmit={addProduct} className="mb-4 flex flex-wrap gap-4">
+      <form onSubmit={addProduct} className="mb-2 flex flex-wrap gap-4">
         <input
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
@@ -149,6 +182,14 @@ export default function ProductsPage() {
           {saving ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </form>
+      {formError ? (
+        <p className="mb-4 text-lg text-red-600">{formError}</p>
+      ) : (
+        <p className="mb-4 text-sm text-gray-500">
+          Código de barras e nome são obrigatórios. SKU só é obrigatório se "Exigir SKU" estiver ativado em
+          Configurações.
+        </p>
+      )}
 
       <div className="mb-8 flex flex-col gap-2">
         <label htmlFor="csvImport" className="inline-block">
@@ -173,19 +214,23 @@ export default function ProductsPage() {
         {products.map((p) =>
           editingBarcode === p.barcode ? (
             <Card key={p.barcode} className="sm:col-span-2">
-              <form onSubmit={saveEdit} className="flex flex-wrap items-center gap-4">
-                <p className="text-xl font-bold">{p.barcode}</p>
-                <input
-                  value={editSku}
-                  onChange={(e) => setEditSku(e.target.value)}
-                  className="w-40 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg"
-                />
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg"
-                />
-                <Button type="submit">Salvar</Button>
+              <form onSubmit={saveEdit} className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <p className="text-xl font-bold">{p.barcode}</p>
+                  <input
+                    value={editSku}
+                    onChange={(e) => setEditSku(e.target.value)}
+                    placeholder="SKU (opcional se não exigido)"
+                    className="w-40 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg placeholder:text-xs"
+                  />
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg"
+                  />
+                  <Button type="submit">Salvar</Button>
+                </div>
+                {editError && <p className="text-base text-red-600">{editError}</p>}
               </form>
             </Card>
           ) : (
@@ -193,7 +238,8 @@ export default function ProductsPage() {
               <div className="min-w-0">
                 <p className="truncate text-xl font-bold">{p.name ?? 'Sem nome'}</p>
                 <p className="truncate text-sm text-gray-600">
-                  <span className="font-mono">{p.sku}</span> · <span className="font-mono">{p.barcode}</span>
+                  <span className="font-mono">{p.sku ?? p.barcode}</span>
+                  {p.sku && <span className="ml-1 font-mono text-gray-400">({p.barcode})</span>}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">

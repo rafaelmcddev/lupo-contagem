@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
+import { getRequireSku } from '@/lib/getRequireSku';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +13,19 @@ export async function PUT(req: Request, { params }: { params: { barcode: string 
   } catch {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
-  const sku = String(body.sku ?? '').trim();
+  const skuInput = String(body.sku ?? '').trim();
   const name = String(body.name ?? '').trim();
-  if (!sku || !name) {
+  if (!name) {
     return NextResponse.json({ error: 'invalid_product' }, { status: 400 });
   }
-  const [row] = await db.update(skus).set({ sku, name }).where(eq(skus.barcode, params.barcode)).returning();
+  if (!skuInput && (await getRequireSku(db))) {
+    return NextResponse.json({ error: 'sku_required' }, { status: 400 });
+  }
+  const [row] = await db
+    .update(skus)
+    .set({ sku: skuInput || null, name })
+    .where(eq(skus.barcode, params.barcode))
+    .returning();
   if (!row) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { asc, ilike, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
+import { getRequireSku } from '@/lib/getRequireSku';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,13 +40,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
   const barcode = String(body.barcode ?? '').trim();
-  const sku = String(body.sku ?? '').trim();
+  const skuInput = String(body.sku ?? '').trim();
   const name = String(body.name ?? '').trim();
-  if (!barcode || !sku || !name) {
+  if (!barcode || !name) {
     return NextResponse.json({ error: 'invalid_product' }, { status: 400 });
   }
+  if (!skuInput && (await getRequireSku(db))) {
+    return NextResponse.json({ error: 'sku_required' }, { status: 400 });
+  }
   try {
-    const [row] = await db.insert(skus).values({ barcode, sku, name }).returning();
+    const [row] = await db.insert(skus).values({ barcode, sku: skuInput || null, name }).returning();
     return NextResponse.json({ product: row }, { status: 201 });
   } catch (err: any) {
     if (err.code === '23505') {

@@ -17,8 +17,16 @@ describe('ProductsPage', () => {
     expect(screen.getByText(/CUECA-SLIP-P/)).toBeInTheDocument();
   });
 
-  it('adds a new product', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ products: [] }) });
+  it('shows the barcode instead of a blank SKU for a product registered without one', async () => {
+    const noSkuProduct = { barcode: '78947467', sku: null, name: 'Produto qualquer' };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ products: [noSkuProduct], total: 1 }) }));
+    render(<ProductsPage />);
+    await waitFor(() => expect(screen.getByText('Produto qualquer')).toBeInTheDocument());
+    expect(screen.getByText('78947467')).toBeInTheDocument();
+  });
+
+  it('adds a new product with barcode, sku, and name', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [] }) });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ProductsPage />);
@@ -40,11 +48,83 @@ describe('ProductsPage', () => {
     );
   });
 
+  it('submits with a blank SKU — the server decides whether SKU is required, not the form', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [] }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText('Código de barras'), { target: { value: '78947467' } });
+    fireEvent.change(screen.getByPlaceholderText('Nome do produto'), { target: { value: 'Produto qualquer' } });
+    fireEvent.click(screen.getByText('Adicionar'));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/products',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ barcode: '78947467', sku: '', name: 'Produto qualquer' }),
+        }),
+      ),
+    );
+  });
+
+  it('shows an error and does not submit when the barcode or name is left blank', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [] }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText('SKU'), { target: { value: 'SKU-X' } });
+    fireEvent.click(screen.getByText('Adicionar'));
+
+    expect(await screen.findByText(/Preencha ao menos o código de barras e o nome/)).toBeInTheDocument();
+    // Only the initial GET happened — no POST was ever attempted.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a message pointing at Configurações when the server requires a SKU', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ products: [] }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'sku_required' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText('Código de barras'), { target: { value: '78947467' } });
+    fireEvent.change(screen.getByPlaceholderText('Nome do produto'), { target: { value: 'Produto qualquer' } });
+    fireEvent.click(screen.getByText('Adicionar'));
+
+    expect(await screen.findByText(/SKU é obrigatório/)).toBeInTheDocument();
+  });
+
+  it('shows a clear message when the barcode is already registered', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ products: [] }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'barcode_already_registered' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText('Código de barras'), { target: { value: '7891234000011' } });
+    fireEvent.change(screen.getByPlaceholderText('SKU'), { target: { value: 'SKU-X' } });
+    fireEvent.change(screen.getByPlaceholderText('Nome do produto'), { target: { value: 'Produto X' } });
+    fireEvent.click(screen.getByText('Adicionar'));
+
+    expect(await screen.findByText('Esse código de barras já está cadastrado.')).toBeInTheDocument();
+  });
+
   it('edits a product inline', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ json: async () => ({ products: [oneProduct] }) })
-      .mockResolvedValueOnce({ json: async () => ({ product: { ...oneProduct, name: 'Novo nome' } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ product: { ...oneProduct, name: 'Novo nome' } }) })
       .mockResolvedValueOnce({ json: async () => ({ products: [{ ...oneProduct, name: 'Novo nome' }] }) });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -62,6 +142,24 @@ describe('ProductsPage', () => {
         expect.objectContaining({ method: 'PUT', body: JSON.stringify({ sku: 'CUECA-SLIP-P', name: 'Novo nome' }) }),
       ),
     );
+  });
+
+  it('shows a message pointing at Configurações when clearing the SKU on edit is not allowed', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ products: [oneProduct] }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'sku_required' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await waitFor(() => expect(screen.getByText('Cueca Slip Preta P')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Editar'));
+    const skuInput = screen.getByDisplayValue('CUECA-SLIP-P');
+    fireEvent.change(skuInput, { target: { value: '' } });
+    fireEvent.click(screen.getByText('Salvar'));
+
+    expect(await screen.findByText(/SKU é obrigatório/)).toBeInTheDocument();
   });
 
   it('removes a product', async () => {

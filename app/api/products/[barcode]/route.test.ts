@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { skus } from '@/db/schema';
+import { settings, skus } from '@/db/schema';
+import { REQUIRE_SKU_KEY } from '@/lib/getRequireSku';
 import { resetDb } from '@/tests/resetDb';
 import { DELETE, PUT } from './route';
 
@@ -30,13 +31,36 @@ describe('/api/products/:barcode', () => {
     expect(res.status).toBe(404);
   });
 
-  it('rejects an empty sku or name on edit', async () => {
+  it('rejects an empty name on edit regardless of the require-SKU setting', async () => {
+    await createProduct();
+    const res = await PUT(
+      new Request('http://localhost', { method: 'PUT', body: JSON.stringify({ sku: 'X', name: '' }) }),
+      { params: { barcode: '7891234000011' } },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty sku on edit when "Exigir SKU" is on (the default)', async () => {
     await createProduct();
     const res = await PUT(
       new Request('http://localhost', { method: 'PUT', body: JSON.stringify({ sku: '', name: 'X' }) }),
       { params: { barcode: '7891234000011' } },
     );
     expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('sku_required');
+  });
+
+  it('allows clearing the sku on edit when "Exigir SKU" is off', async () => {
+    await createProduct();
+    await db.insert(settings).values({ key: REQUIRE_SKU_KEY, value: 'false' });
+    const res = await PUT(
+      new Request('http://localhost', { method: 'PUT', body: JSON.stringify({ sku: '', name: 'Sem SKU mesmo' }) }),
+      { params: { barcode: '7891234000011' } },
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.product).toMatchObject({ sku: null, name: 'Sem SKU mesmo' });
   });
 
   it('removes a product', async () => {

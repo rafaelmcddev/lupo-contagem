@@ -64,9 +64,10 @@ async function findOrCreateBox(db: DbClient, countingId: number, prefix: string)
   throw new Error('failed_to_create_box');
 }
 
-async function findLinkedSku(db: DbClient, barcode: string): Promise<string | undefined> {
+async function findLinkedSku(db: DbClient, barcode: string): Promise<{ found: boolean; sku: string | null }> {
   const rows = await db.select().from(skus).where(eq(skus.barcode, barcode)).limit(1);
-  return rows[0]?.sku;
+  if (!rows[0]) return { found: false, sku: null };
+  return { found: true, sku: rows[0].sku };
 }
 
 async function findOrResolveSku(
@@ -76,7 +77,10 @@ async function findOrResolveSku(
   requireSku: boolean,
 ): Promise<string | null> {
   const existing = await findLinkedSku(db, barcode);
-  if (existing) return existing;
+  // A barcode that's already registered is "resolved" even if it was
+  // registered without a SKU (allowed when "Exigir SKU" is off) — it
+  // should never be treated the same as a totally unknown barcode.
+  if (existing.found) return existing.sku;
 
   const trimmed = (providedSku ?? '').trim();
   if (!trimmed) {
@@ -97,7 +101,7 @@ async function findOrResolveSku(
       if (err.code !== '23505') throw err;
     }
     const retry = await findLinkedSku(db, barcode);
-    if (retry) return retry;
+    if (retry.found) return retry.sku;
   }
   throw new Error('failed_to_link_sku');
 }

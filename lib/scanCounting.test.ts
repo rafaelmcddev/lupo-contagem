@@ -167,4 +167,17 @@ describe('recordScan', () => {
     expect(outcome.box?.sku).toBeNull();
     expect(outcome.box?.boxNumber).toBe(1);
   });
+
+  it('scans a barcode that was manually registered with no SKU without asking for one, even when requireSkuUsed is true', async () => {
+    // A product registered via the Produtos page with "Exigir SKU" off can
+    // have a barcode with no sku at all. Scanning it later — even in a
+    // counting where requireSkuUsed is true — must recognize the barcode as
+    // already resolved (deliberately skuless), not treat it as unknown and
+    // demand a SKU.
+    await db.insert(skus).values({ barcode: '7891234000011', sku: null, name: 'Produto sem SKU' });
+    const counting = await createActiveCounting(7, true);
+    const outcome = await recordScan(db, counting.id, '7891234000011');
+    expect(outcome.box?.sku).toBeNull();
+    expect(outcome.box?.boxNumber).toBe(1);
+  });
 });

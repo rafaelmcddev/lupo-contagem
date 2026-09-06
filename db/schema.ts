@@ -51,7 +51,10 @@ export const groups = pgTable('groups', {
 
 export const skus = pgTable('skus', {
   barcode: text('barcode').primaryKey(),
-  sku: text('sku').notNull(),
+  // Nullable: whether a SKU is required depends on the "Exigir SKU" setting,
+  // enforced in the API routes — not a hard DB constraint, since that
+  // setting can be toggled at any time and shouldn't invalidate existing rows.
+  sku: text('sku'),
   name: text('name'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
