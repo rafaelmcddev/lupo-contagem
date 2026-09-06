@@ -3,5 +3,10 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-50 text-ink text-base;
+  @apply bg-canvas text-ink text-base font-sans;
+}
+
+:focus-visible {
+  outline: 2px solid theme('colors.accent.DEFAULT');
+  outline-offset: 2px;
 }

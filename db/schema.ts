@@ -1,6 +1,7 @@
 import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const countingStatus = pgEnum('counting_status', ['active', 'finished']);
+export const countingSource = pgEnum('counting_source', ['manual', 'xml']);
 
 export const countings = pgTable('countings', {
   id: serial('id').primaryKey(),
@@ -10,6 +11,9 @@ export const countings = pgTable('countings', {
   prefixLengthUsed: integer('prefix_length_used').notNull(),
   requireSkuUsed: boolean('require_sku_used').notNull().default(true),
   status: countingStatus('status').notNull().default('active'),
+  source: countingSource('source').notNull().default('manual'),
+  invoiceNumber: text('invoice_number'),
+  supplierName: text('supplier_name'),
 });
 
 export const boxes = pgTable(
@@ -50,4 +54,13 @@ export const skus = pgTable('skus', {
   sku: text('sku').notNull(),
   name: text('name'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const invoiceItems = pgTable('invoice_items', {
+  id: serial('id').primaryKey(),
+  countingId: integer('counting_id').notNull().references(() => countings.id),
+  barcode: text('barcode').notNull(),
+  sku: text('sku'),
+  name: text('name'),
+  expectedQty: integer('expected_qty').notNull(),
 });

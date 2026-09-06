@@ -210,4 +210,24 @@ describe('CountingPage', () => {
 
     await waitFor(() => expect(screen.getByText('Contagem não encontrada.')).toBeInTheDocument());
   });
+
+  it('shows the invoice check comparison for an xml-sourced counting', async () => {
+    const xmlDetail = {
+      counting: { id: 1, name: 'NF 5237024', status: 'active', source: 'xml', invoiceNumber: '5237024' },
+      boxes: activeDetail.boxes,
+      grandTotal: 2,
+      invoiceCheck: [
+        { barcode: '7891234000011', sku: 'SKU-A', name: 'Produto A', expectedQty: 3, countedQty: 2 },
+        { barcode: '7891234000028', sku: 'SKU-B', name: 'Produto B', expectedQty: 5, countedQty: 5 },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => xmlDetail }));
+    render(<CountingPage params={{ id: '1' }} />);
+
+    await waitFor(() => expect(screen.getByText('Conferência da nota')).toBeInTheDocument());
+    expect(screen.getByText('Importada da NF-e nº 5237024')).toBeInTheDocument();
+    expect(screen.getByText('Produto A')).toBeInTheDocument();
+    expect(screen.getByText('Faltam 1')).toBeInTheDocument();
+    expect(screen.getByText('OK')).toBeInTheDocument();
+  });
 });

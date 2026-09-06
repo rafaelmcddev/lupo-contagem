@@ -45,14 +45,14 @@ export default function GroupsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
+    <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <PageHeading>Grupos</PageHeading>
-      <form onSubmit={addGroup} className="mb-8 flex gap-4">
+      <form onSubmit={addGroup} className="mb-8 flex flex-col gap-4 sm:flex-row">
         <input
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
           placeholder="Prefixo"
-          className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl sm:w-40"
         />
         <input
           value={name}
@@ -64,10 +64,10 @@ export default function GroupsPage() {
       </form>
       <div className="grid gap-4">
         {groups.map((g) => (
-          <Card key={g.id} className="flex items-center justify-between">
-            <div>
-              <p className="text-xl font-bold">{g.prefix}</p>
-              <p className="text-lg text-gray-600">{g.name}</p>
+          <Card key={g.id} className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-xl font-bold font-mono">{g.prefix}</p>
+              <p className="truncate text-lg text-gray-600">{g.name}</p>
             </div>
             <Button variant="danger" onClick={() => removeGroup(g.id)}>
               Remover

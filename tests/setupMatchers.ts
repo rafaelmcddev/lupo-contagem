@@ -1,7 +1,14 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { configure } from '@testing-library/react';
+
+// The app uses next/navigation's useRouter (e.g. to redirect after importing
+// an XML invoice). Outside of the real Next.js runtime there is no App
+// Router context to provide it, so stub it globally for every test file.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+}));
 
 // Polyfill for File.prototype.text() in jsdom
 if (!File.prototype.text) {

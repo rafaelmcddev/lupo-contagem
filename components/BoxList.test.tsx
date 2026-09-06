@@ -25,7 +25,7 @@ describe('BoxList', () => {
       />,
     );
     const boxNumber = screen.getByText('Caixa 1');
-    expect(boxNumber).toHaveClass('text-4xl');
+    expect(boxNumber).toHaveClass('text-3xl');
     expect(screen.getByText('Cueca Slip Preta')).toBeInTheDocument();
     expect(screen.getByText('12 peças')).toBeInTheDocument();
     expect(screen.getByText('CUECA-SLIP-P')).toBeInTheDocument();

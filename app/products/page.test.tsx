@@ -10,11 +10,11 @@ const oneProduct = { barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca
 
 describe('ProductsPage', () => {
   it('lists registered products', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ products: [oneProduct] }) }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ products: [oneProduct], total: 1 }) }));
     render(<ProductsPage />);
     await waitFor(() => expect(screen.getByText('Cueca Slip Preta P')).toBeInTheDocument());
-    expect(screen.getByText('7891234000011')).toBeInTheDocument();
-    expect(screen.getByText('CUECA-SLIP-P')).toBeInTheDocument();
+    expect(screen.getByText(/7891234000011/)).toBeInTheDocument();
+    expect(screen.getByText(/CUECA-SLIP-P/)).toBeInTheDocument();
   });
 
   it('adds a new product', async () => {
@@ -65,6 +65,7 @@ describe('ProductsPage', () => {
   });
 
   it('removes a product', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ json: async () => ({ products: [oneProduct] }) })
@@ -102,5 +103,26 @@ describe('ProductsPage', () => {
       ),
     );
     await waitFor(() => expect(screen.getByText(/2 criados, 0 atualizados/)).toBeInTheDocument());
+  });
+
+  it('fetches products filtered by the search box after a short debounce', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ products: [oneProduct], total: 1 }) })
+      .mockResolvedValueOnce({ json: async () => ({ products: [], total: 0 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage />);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText('Buscar produtos'), { target: { value: 'sutia' } });
+    vi.advanceTimersByTime(350);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const lastCallUrl = fetchMock.mock.calls[1][0] as string;
+    expect(lastCallUrl).toContain('q=sutia');
+
+    vi.useRealTimers();
   });
 });

@@ -103,4 +103,20 @@ describe('CameraScanner', () => {
       vi.useRealTimers();
     }
   });
+
+  it('shows the box number in large text when feedback carries a boxNumber', async () => {
+    decodeFromVideoDevice.mockImplementation(() => Promise.resolve({ stop }));
+    const { rerender } = render(
+      <CameraScanner onScan={() => {}} onClose={() => {}} feedback={{ token: 1, boxNumber: 3, message: 'Caixa 3' }} />,
+    );
+    await waitFor(() => expect(screen.getByText('3')).toBeInTheDocument());
+    expect(screen.getByText('Caixa')).toBeInTheDocument();
+
+    // A status message with no boxNumber renders as a small banner instead.
+    rerender(
+      <CameraScanner onScan={() => {}} onClose={() => {}} feedback={{ token: 2, message: 'Leitura repetida ignorada.' }} />,
+    );
+    await waitFor(() => expect(screen.getByText('Leitura repetida ignorada.')).toBeInTheDocument());
+    expect(screen.queryByText('3')).not.toBeInTheDocument();
+  });
 });

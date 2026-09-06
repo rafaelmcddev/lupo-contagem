@@ -20,7 +20,7 @@ describe('HomePage', () => {
     await waitFor(() => expect(screen.getByText('Entrega Lupo 03/09')).toBeInTheDocument());
   });
 
-  it('creates a new counting when the form is submitted', async () => {
+  it('creates a new counting when the manual form is submitted', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ countings: [] }) });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -28,7 +28,7 @@ describe('HomePage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
     fireEvent.change(screen.getByPlaceholderText(/Nome da contagem/), { target: { value: 'Nova entrega' } });
-    fireEvent.click(screen.getByText('Iniciar contagem'));
+    fireEvent.click(screen.getByText('Contagem manual'));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -36,5 +36,27 @@ describe('HomePage', () => {
         expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'Nova entrega' }) }),
       ),
     );
+  });
+
+  it('imports an XML file and shows an error message when it is rejected', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/countings/import-xml') {
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({ error: 'invalid_xml', message: 'Não parece ser um XML de NF-e.' }),
+        });
+      }
+      return Promise.resolve({ json: async () => ({ countings: [] }) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<HomePage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+    const file = new File(['<a/>'], 'nota.xml', { type: 'text/xml' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText('Não parece ser um XML de NF-e.')).toBeInTheDocument());
   });
 });

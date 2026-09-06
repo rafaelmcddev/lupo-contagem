@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Product {
   barcode: string;
@@ -11,8 +12,16 @@ interface Product {
   name: string | null;
 }
 
+const PAGE_SIZE = 12;
+const SEARCH_DEBOUNCE_MS = 300;
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [loading, setLoading] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
@@ -21,15 +30,31 @@ export default function ProductsPage() {
   const [editName, setEditName] = useState('');
   const [importSummary, setImportSummary] = useState<string | null>(null);
 
-  async function load() {
-    const res = await fetch('/api/products');
-    const data = await res.json();
-    setProducts(data.products);
-  }
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setPage(1);
+      setDebouncedQuery(query);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (debouncedQuery) params.set('q', debouncedQuery);
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const data = await res.json();
+      setProducts(data.products);
+      setTotal(data.total ?? data.products.length);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, debouncedQuery]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   async function addProduct(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +89,7 @@ export default function ProductsPage() {
   }
 
   async function removeProduct(productBarcode: string) {
+    if (!window.confirm('Remover este produto do catálogo?')) return;
     await fetch(`/api/products/${productBarcode}`, { method: 'DELETE' });
     load();
   }
@@ -84,7 +110,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
+    <main className="mx-auto max-w-3xl p-4 sm:p-8">
       <PageHeading>Produtos</PageHeading>
 
       <form onSubmit={addProduct} className="mb-4 flex flex-wrap gap-4">
@@ -120,10 +146,18 @@ export default function ProductsPage() {
         {importSummary && <p className="text-lg text-gray-600">{importSummary}</p>}
       </div>
 
-      <div className="grid gap-4">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar por nome, SKU ou código de barras..."
+        aria-label="Buscar produtos"
+        className="mb-6 w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
         {products.map((p) =>
           editingBarcode === p.barcode ? (
-            <Card key={p.barcode}>
+            <Card key={p.barcode} className="sm:col-span-2">
               <form onSubmit={saveEdit} className="flex flex-wrap items-center gap-4">
                 <p className="text-xl font-bold">{p.barcode}</p>
                 <input
@@ -140,14 +174,14 @@ export default function ProductsPage() {
               </form>
             </Card>
           ) : (
-            <Card key={p.barcode} className="flex items-center justify-between">
-              <div>
-                <p className="text-xl font-bold">{p.barcode}</p>
-                <p className="text-lg text-gray-600">
-                  <span>{p.sku}</span> — <span>{p.name ?? 'Sem nome'}</span>
+            <Card key={p.barcode} className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="truncate text-xl font-bold">{p.name ?? 'Sem nome'}</p>
+                <p className="truncate text-sm text-gray-600">
+                  <span className="font-mono">{p.sku}</span> · <span className="font-mono">{p.barcode}</span>
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <Button variant="secondary" onClick={() => startEdit(p)}>
                   Editar
                 </Button>
@@ -158,7 +192,14 @@ export default function ProductsPage() {
             </Card>
           ),
         )}
+        {!loading && products.length === 0 && (
+          <p className="text-xl text-gray-500 sm:col-span-2">
+            {debouncedQuery ? 'Nenhum produto encontrado para essa busca.' : 'Nenhum produto cadastrado.'}
+          </p>
+        )}
       </div>
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
     </main>
   );
 }

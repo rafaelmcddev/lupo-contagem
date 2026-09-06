@@ -2,18 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BarcodeInput } from '@/components/BarcodeInput';
-import { CameraScanner } from '@/components/CameraScanner';
+import { CameraScanner, type CameraFeedback } from '@/components/CameraScanner';
 import { BoxList, type BoxSummary } from '@/components/BoxList';
+import { InvoiceCheckList } from '@/components/InvoiceCheckList';
 import { ExportButtons } from '@/components/ExportButtons';
 import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { unlockSpeech, useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
 import { enqueueScan, loadQueue, removeFromQueue } from '@/lib/scanQueue';
 
+interface InvoiceCheckItem {
+  barcode: string;
+  sku: string | null;
+  name: string | null;
+  expectedQty: number;
+  countedQty: number;
+}
+
 interface CountingDetail {
-  counting: { id: number; name: string; status: 'active' | 'finished' };
+  counting: { id: number; name: string; status: 'active' | 'finished'; source?: 'manual' | 'xml'; invoiceNumber?: string | null };
   boxes: BoxSummary[];
   grandTotal: number;
+  invoiceCheck: InvoiceCheckItem[] | null;
 }
 
 export default function CountingPage({ params }: { params: { id: string } }) {
@@ -26,8 +36,15 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const [skuError, setSkuError] = useState<string | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [cameraFeedback, setCameraFeedback] = useState<CameraFeedback | null>(null);
   const isFlushingRef = useRef(false);
+  const cameraFeedbackTokenRef = useRef(0);
   const { announceBox } = useSpeechAnnouncer();
+
+  function notifyCamera(message: string, boxNumber?: number) {
+    cameraFeedbackTokenRef.current += 1;
+    setCameraFeedback({ token: cameraFeedbackTokenRef.current, message, boxNumber });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -124,28 +141,34 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       if (status === 422 && data.error === 'sku_required') {
         setSkuError(null);
         setPendingSkuBarcode(barcode);
+        notifyCamera('SKU necessário');
         return;
       }
       if (status === 400) {
         setScanMessage('Código inválido — verifique a leitura.');
+        notifyCamera('Código inválido');
         return;
       }
       if (status === 409) {
         setScanMessage('Esta contagem já foi finalizada.');
+        notifyCamera('Contagem finalizada');
         return;
       }
       if (data.duplicate === true) {
         setScanMessage('Leitura repetida ignorada.');
+        notifyCamera('Repetido, ignorado');
         return;
       }
       setScanMessage(null);
       if (data.box) {
         announceBox(data.box.boxNumber);
+        notifyCamera(`Caixa ${data.box.boxNumber}`, data.box.boxNumber);
       }
       load();
     } catch {
       enqueueScan(countingId, barcode);
       setSyncing(true);
+      notifyCamera('Salvo offline');
     }
   }
 
@@ -187,7 +210,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
 
   if (loadError) {
     return (
-      <main className="mx-auto max-w-4xl p-8">
+      <main className="mx-auto max-w-4xl p-4 sm:p-8">
         <p className="text-2xl font-bold text-red-600">{loadError}</p>
       </main>
     );
@@ -197,8 +220,11 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const isActive = detail.counting.status === 'active';
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
+    <main className="mx-auto max-w-4xl p-4 sm:p-8">
       <PageHeading>{detail.counting.name}</PageHeading>
+      {detail.counting.source === 'xml' && detail.counting.invoiceNumber && (
+        <p className="-mt-4 mb-6 text-lg text-gray-500">Importada da NF-e nº {detail.counting.invoiceNumber}</p>
+      )}
 
       {syncing && <p className="mb-4 text-lg text-amber-600">Sincronizando leituras pendentes...</p>}
 
@@ -213,7 +239,13 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       {isActive && (
         <div className="mb-8 flex flex-col gap-4">
           <BarcodeInput onScan={handleScan} disabled={!!pendingSkuBarcode} />
-          <Button variant="secondary" onClick={() => setShowCamera(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              unlockSpeech();
+              setShowCamera(true);
+            }}
+          >
             Usar câmera
           </Button>
         </div>
@@ -237,8 +269,10 @@ export default function CountingPage({ params }: { params: { id: string } }) {
       )}
 
       {isActive && showCamera && (
-        <CameraScanner onScan={handleScan} onClose={() => setShowCamera(false)} />
+        <CameraScanner onScan={handleScan} onClose={() => setShowCamera(false)} feedback={cameraFeedback} />
       )}
+
+      {detail.invoiceCheck && <InvoiceCheckList items={detail.invoiceCheck} />}
 
       <BoxList boxes={detail.boxes} />
 

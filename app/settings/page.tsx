@@ -29,7 +29,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl p-8">
+    <main className="mx-auto max-w-xl p-4 sm:p-8">
       <PageHeading>Configurações</PageHeading>
       <form onSubmit={save} className="flex flex-col gap-4">
         <label className="text-xl font-medium" htmlFor="prefixLength">

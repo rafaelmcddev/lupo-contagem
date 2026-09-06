@@ -43,6 +43,26 @@ describe('/api/countings', () => {
     expect(data.countings).toHaveLength(0);
   });
 
+  it('filters by name search', async () => {
+    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ name: 'Entrega Lupo' }) }));
+    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ name: 'Contagem geral' }) }));
+
+    const res = await GET(new Request('http://localhost/api/countings?q=lupo'));
+    const data = await res.json();
+    expect(data.countings).toHaveLength(1);
+    expect(data.countings[0].name).toBe('Entrega Lupo');
+  });
+
+  it('paginates results and reports the total', async () => {
+    for (let i = 1; i <= 3; i++) {
+      await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ name: `Contagem ${i}` }) }));
+    }
+    const res = await GET(new Request('http://localhost/api/countings?pageSize=2&page=1'));
+    const data = await res.json();
+    expect(data.countings).toHaveLength(2);
+    expect(data.total).toBe(3);
+  });
+
   it('returns 400 invalid_json when the body is malformed', async () => {
     const res = await POST(new Request('http://localhost', { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);

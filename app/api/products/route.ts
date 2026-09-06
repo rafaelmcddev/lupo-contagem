@@ -1,13 +1,34 @@
 import { NextResponse } from 'next/server';
-import { asc } from 'drizzle-orm';
+import { asc, ilike, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const rows = await db.select().from(skus).orderBy(asc(skus.barcode));
-  return NextResponse.json({ products: rows });
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const q = (url.searchParams.get('q') ?? '').trim();
+  const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
+  const pageSize = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Number(url.searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE),
+  );
+
+  const where = q ? or(ilike(skus.name, `%${q}%`), ilike(skus.sku, `%${q}%`), ilike(skus.barcode, `%${q}%`)) : undefined;
+
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(skus).where(where);
+  const rows = await db
+    .select()
+    .from(skus)
+    .where(where)
+    .orderBy(asc(skus.name), asc(skus.barcode))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  return NextResponse.json({ products: rows, total: count, page, pageSize });
 }
 
 export async function POST(req: Request) {
