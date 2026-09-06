@@ -170,33 +170,6 @@ export default function HomePage() {
         )}
       </div>
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-
-      <nav className="mt-8 flex flex-wrap gap-2 border-t border-gray-200 pt-6">
-        <Link
-          href="/history"
-          className="rounded-lg px-4 py-2 text-base font-medium text-gray-600 transition-colors hover:bg-canvas hover:text-ink"
-        >
-          Histórico
-        </Link>
-        <Link
-          href="/products"
-          className="rounded-lg px-4 py-2 text-base font-medium text-gray-600 transition-colors hover:bg-canvas hover:text-ink"
-        >
-          Produtos
-        </Link>
-        <Link
-          href="/groups"
-          className="rounded-lg px-4 py-2 text-base font-medium text-gray-600 transition-colors hover:bg-canvas hover:text-ink"
-        >
-          Grupos
-        </Link>
-        <Link
-          href="/settings"
-          className="rounded-lg px-4 py-2 text-base font-medium text-gray-600 transition-colors hover:bg-canvas hover:text-ink"
-        >
-          Configurações
-        </Link>
-      </nav>
     </main>
   );
 }

@@ -35,6 +35,23 @@ describe('CountingPage', () => {
     expect(screen.getByText('Finalizar contagem')).toBeInTheDocument();
   });
 
+  it('links back to open countings when active, since there is no other way to navigate away', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => activeDetail }));
+    render(<CountingPage params={{ id: '1' }} />);
+
+    await waitFor(() => expect(screen.getByText(/Voltar para contagens abertas/)).toBeInTheDocument());
+    expect(screen.getByText(/Voltar para contagens abertas/)).toHaveAttribute('href', '/');
+  });
+
+  it('links back to the history when the counting is finished', async () => {
+    const finishedDetail = { ...activeDetail, counting: { ...activeDetail.counting, status: 'finished' } };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: async () => finishedDetail }));
+    render(<CountingPage params={{ id: '1' }} />);
+
+    await waitFor(() => expect(screen.getByText(/Voltar para o histórico/)).toBeInTheDocument());
+    expect(screen.getByText(/Voltar para o histórico/)).toHaveAttribute('href', '/history');
+  });
+
   it('sends a scan and re-fetches the detail when a barcode is entered', async () => {
     const fetchMock = vi
       .fn()

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { BarcodeInput } from '@/components/BarcodeInput';
 import { CameraScanner, type CameraFeedback } from '@/components/CameraScanner';
 import { BoxList, type BoxSummary } from '@/components/BoxList';
@@ -217,6 +218,9 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   if (loadError) {
     return (
       <main className="mx-auto max-w-4xl p-4 sm:p-8">
+        <Link href="/" className="mb-4 inline-block text-sm font-medium text-accent hover:underline">
+          ← Voltar para o início
+        </Link>
         <p className="text-2xl font-bold text-red-600">{loadError}</p>
       </main>
     );
@@ -242,6 +246,9 @@ export default function CountingPage({ params }: { params: { id: string } }) {
 
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-8">
+      <Link href={isActive ? '/' : '/history'} className="mb-4 inline-block text-sm font-medium text-accent hover:underline">
+        ← Voltar para {isActive ? 'contagens abertas' : 'o histórico'}
+      </Link>
       <PageHeading>{detail.counting.name}</PageHeading>
       {detail.counting.source === 'xml' && detail.counting.invoiceNumber && (
         <p className="-mt-4 mb-6 text-lg text-gray-500">Importada da NF-e nº {detail.counting.invoiceNumber}</p>
