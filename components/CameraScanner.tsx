@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 
-const RESCAN_DEBOUNCE_MS = 2000;
+const NO_READ_RESET_MS = 1000;
 const PULSE_DURATION_MS = 500;
 const BOX_BANNER_DURATION_MS = 2800;
 
@@ -29,7 +29,7 @@ export function CameraScanner({
   const [error, setError] = useState<string | null>(null);
   const [pulsing, setPulsing] = useState(false);
   const [banner, setBanner] = useState<{ boxNumber?: number; message: string } | null>(null);
-  const lastScanRef = useRef<{ code: string; time: number } | null>(null);
+  const lastScanRef = useRef<{ code: string | null; lastSeenAt: number }>({ code: null, lastSeenAt: 0 });
   const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFeedbackToken = useRef<number | null>(null);
@@ -37,6 +37,9 @@ export function CameraScanner({
   // Every read gets an immediate visual pulse + vibration the instant the
   // camera decodes it — this doesn't wait for the server round trip, so it
   // confirms "yes, that was read" even before we know which box it landed in.
+  // Note: `navigator.vibrate` isn't implemented at all in iOS Safari/WebKit
+  // (any iPhone browser, since they all run WebKit) — the visual pulse below
+  // is what actually confirms the read there; on Android it's a bonus.
   function pulse() {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(80);
@@ -67,14 +70,30 @@ export function CameraScanner({
 
     reader
       .decodeFromVideoDevice(undefined, videoRef.current ?? undefined, (result) => {
-        if (!result) return;
-        const code = result.getText();
         const now = Date.now();
-        const last = lastScanRef.current;
-        if (last && last.code === code && now - last.time < RESCAN_DEBOUNCE_MS) return;
-        lastScanRef.current = { code, time: now };
-        pulse();
-        onScan(code);
+        if (result) {
+          const code = result.getText();
+          const state = lastScanRef.current;
+          state.lastSeenAt = now;
+          // Only counts as a *new* scan when the code changes (the person
+          // swapped to a different product while still holding steady) — a
+          // barcode that's simply still sitting in frame doesn't re-count.
+          if (state.code !== code) {
+            state.code = code;
+            pulse();
+            onScan(code);
+          }
+          return;
+        }
+        // No barcode found in this frame. Only "let go" of whatever was last
+        // scanned after a real gap with nothing in view — long enough that a
+        // single missed frame on a steady product can't falsely reset it,
+        // but short enough that swapping to the next product (which takes at
+        // least a second by hand) re-arms the same barcode right away.
+        const state = lastScanRef.current;
+        if (state.code && now - state.lastSeenAt > NO_READ_RESET_MS) {
+          state.code = null;
+        }
       })
       .then((c) => {
         if (cancelled) {

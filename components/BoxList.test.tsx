@@ -8,58 +8,67 @@ describe('BoxList', () => {
     expect(screen.getByText(/Nenhuma caixa ainda/)).toBeInTheDocument();
   });
 
-  it('renders the box number, group name, total, and a name+SKU breakdown in large text', () => {
+  it('collapses a single-product box into one line, showing the quantity only once', () => {
     render(
       <BoxList
         boxes={[
           {
             boxNumber: 1,
             groupName: 'Cueca Slip Preta',
-            total: 12,
-            skuBreakdown: [
-              { sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P', total: 7 },
-              { sku: 'CUECA-SLIP-M', name: 'Cueca Slip Preta M', total: 5 },
-            ],
+            total: 7,
+            skuBreakdown: [{ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P', total: 7 }],
           },
         ]}
       />,
     );
-    const boxNumber = screen.getByText('Caixa 1');
-    expect(boxNumber).toHaveClass('text-3xl');
+    expect(screen.getByText('Caixa 1')).toBeInTheDocument();
     expect(screen.getByText('Cueca Slip Preta')).toBeInTheDocument();
-    expect(screen.getByText('12 peças')).toBeInTheDocument();
     expect(screen.getByText('Cueca Slip Preta P')).toBeInTheDocument();
     expect(screen.getByText('(CUECA-SLIP-P)')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('Cueca Slip Preta M')).toBeInTheDocument();
-    expect(screen.getByText('(CUECA-SLIP-M)')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
+    // The quantity 7 should render exactly once for this box, not once for
+    // the box total and again for the (identical) product total.
+    expect(screen.getAllByText('7')).toHaveLength(1);
   });
 
-  it('renders a box without a name when none is registered', () => {
+  it('shows the barcode instead of "Sem SKU" when a product has no SKU registered', () => {
     render(
       <BoxList
-        boxes={[{ boxNumber: 2, groupName: null, total: 4, skuBreakdown: [{ sku: 'OUTRO-SKU', name: null, total: 4 }] }]}
+        boxes={[
+          {
+            boxNumber: 2,
+            groupName: null,
+            total: 3,
+            skuBreakdown: [{ barcode: '7899999000011', sku: null, name: null, total: 3 }],
+          },
+        ]}
       />,
     );
-    expect(screen.getByText('Caixa 2')).toBeInTheDocument();
+    expect(screen.getByText('Sem nome')).toBeInTheDocument();
+    expect(screen.getByText('(7899999000011)')).toBeInTheDocument();
     expect(screen.queryByText('null')).not.toBeInTheDocument();
   });
 
-  it('renders "Sem nome" and "Sem SKU" for a breakdown entry with neither linked', () => {
+  it('shows a per-product breakdown plus the box total when a box has more than one product', () => {
     render(
       <BoxList
         boxes={[
           {
             boxNumber: 3,
             groupName: null,
-            total: 2,
-            skuBreakdown: [{ sku: null, name: null, total: 2 }],
+            total: 12,
+            skuBreakdown: [
+              { barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P', total: 7 },
+              { barcode: '7891234000028', sku: 'CUECA-SLIP-M', name: 'Cueca Slip Preta M', total: 5 },
+            ],
           },
         ]}
       />,
     );
-    expect(screen.getByText('Sem nome')).toBeInTheDocument();
-    expect(screen.getByText('(Sem SKU)')).toBeInTheDocument();
+    expect(screen.getByText('Caixa 3')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Cueca Slip Preta P')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('Cueca Slip Preta M')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 });

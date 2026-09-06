@@ -32,12 +32,12 @@ describe('/api/countings/:id', () => {
     expect(data.boxes[0]).toMatchObject({ boxNumber: 1, total: 2, groupName: null });
     expect(data.boxes[0].skuBreakdown).toEqual(
       expect.arrayContaining([
-        { sku: 'CUECA-SLIP-P', name: null, total: 1 },
-        { sku: 'CUECA-SLIP-M', name: null, total: 1 },
+        { barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: null, total: 1 },
+        { barcode: '7891234999999', sku: 'CUECA-SLIP-M', name: null, total: 1 },
       ]),
     );
     expect(data.boxes[1]).toMatchObject({ boxNumber: 2, total: 1, groupName: null });
-    expect(data.boxes[1].skuBreakdown).toEqual([{ sku: 'OUTRO-SKU', name: null, total: 1 }]);
+    expect(data.boxes[1].skuBreakdown).toEqual([{ barcode: '7899999000011', sku: 'OUTRO-SKU', name: null, total: 1 }]);
     expect(data.grandTotal).toBe(3);
   });
 
@@ -66,8 +66,8 @@ describe('/api/countings/:id', () => {
     expect(data.boxes[0].total).toBe(2);
     expect(data.boxes[0].skuBreakdown).toEqual(
       expect.arrayContaining([
-        { sku: null, name: null, total: 1 },
-        { sku: 'CUECA-SLIP-M', name: null, total: 1 },
+        { barcode: '7891234000011', sku: null, name: null, total: 1 },
+        { barcode: '7891234999999', sku: 'CUECA-SLIP-M', name: null, total: 1 },
       ]),
     );
   });

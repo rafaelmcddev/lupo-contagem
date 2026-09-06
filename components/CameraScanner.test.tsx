@@ -81,7 +81,7 @@ describe('CameraScanner', () => {
     expect(onScan).toHaveBeenNthCalledWith(2, '9999999000011');
   });
 
-  it('fires onScan again for the same code once the debounce window elapses', async () => {
+  it('does not re-fire onScan for the same code while it stays continuously in frame, no matter how much time passes', async () => {
     vi.useFakeTimers();
     try {
       const onScan = vi.fn();
@@ -95,10 +95,69 @@ describe('CameraScanner', () => {
       await vi.waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
 
       callback!({ getText: () => '7891234000011' });
-      vi.advanceTimersByTime(2100);
+      // Same code keeps being decoded every 200ms, well under the no-read
+      // reset threshold — simulates someone holding the same product steady
+      // in front of the camera for a while.
+      for (let i = 0; i < 10; i++) {
+        vi.advanceTimersByTime(200);
+        callback!({ getText: () => '7891234000011' });
+      }
+
+      expect(onScan).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fires onScan again for the same code once it disappears from frame for a real gap', async () => {
+    vi.useFakeTimers();
+    try {
+      const onScan = vi.fn();
+      let callback: ((result: { getText: () => string } | undefined) => void) | undefined;
+      decodeFromVideoDevice.mockImplementation((_device: unknown, _video: unknown, cb: typeof callback) => {
+        callback = cb;
+        return Promise.resolve({ stop });
+      });
+
+      render(<CameraScanner onScan={onScan} onClose={() => {}} />);
+      await vi.waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
+
+      callback!({ getText: () => '7891234000011' });
+      // The product is moved out of frame — the reader keeps attempting and
+      // finding nothing — for longer than the reset threshold.
+      callback!(undefined);
+      vi.advanceTimersByTime(1100);
+      callback!(undefined);
+      // Same barcode shown again (e.g. the person picked it back up, or it's
+      // the next unit of the same product) now counts as a fresh scan.
       callback!({ getText: () => '7891234000011' });
 
       expect(onScan).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not reset on a single missed frame while the same product is still held steady', async () => {
+    vi.useFakeTimers();
+    try {
+      const onScan = vi.fn();
+      let callback: ((result: { getText: () => string } | undefined) => void) | undefined;
+      decodeFromVideoDevice.mockImplementation((_device: unknown, _video: unknown, cb: typeof callback) => {
+        callback = cb;
+        return Promise.resolve({ stop });
+      });
+
+      render(<CameraScanner onScan={onScan} onClose={() => {}} />);
+      await vi.waitFor(() => expect(decodeFromVideoDevice).toHaveBeenCalled());
+
+      callback!({ getText: () => '7891234000011' });
+      vi.advanceTimersByTime(200);
+      callback!(undefined); // one dropped frame, well under the reset threshold
+      vi.advanceTimersByTime(200);
+      callback!({ getText: () => '7891234000011' });
+
+      expect(onScan).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

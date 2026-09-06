@@ -23,14 +23,19 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const boxesWithTotals = await Promise.all(
     boxRows.map(async (box) => {
       const skuResult = await db.execute(sql`
-        SELECT s.sku AS sku, s.name AS name, COUNT(*)::int AS total
+        SELECT sc.barcode AS barcode, s.sku AS sku, s.name AS name, COUNT(*)::int AS total
         FROM scans sc
         LEFT JOIN skus s ON s.barcode = sc.barcode
         WHERE sc.box_id = ${box.id}
-        GROUP BY s.sku, s.name
-        ORDER BY s.sku
+        GROUP BY sc.barcode, s.sku, s.name
+        ORDER BY s.name, sc.barcode
       `);
-      const skuBreakdown = (skuResult as any).rows as { sku: string | null; name: string | null; total: number }[];
+      const skuBreakdown = (skuResult as any).rows as {
+        barcode: string;
+        sku: string | null;
+        name: string | null;
+        total: number;
+      }[];
       const total = skuBreakdown.reduce((sum, s) => sum + s.total, 0);
       return {
         boxNumber: box.boxNumber,

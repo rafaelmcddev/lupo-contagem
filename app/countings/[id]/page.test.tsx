@@ -21,7 +21,7 @@ afterEach(() => {
 
 const activeDetail = {
   counting: { id: 1, name: 'Entrega Lupo 03/09', status: 'active' },
-  boxes: [{ boxNumber: 1, groupName: null, total: 2, skuBreakdown: [{ sku: 'CUECA-SLIP-P', total: 2 }] }],
+  boxes: [{ boxNumber: 1, groupName: null, total: 2, skuBreakdown: [{ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: null, total: 2 }] }],
   grandTotal: 2,
 };
 
@@ -77,7 +77,7 @@ describe('CountingPage', () => {
         status: 200, ok: true,
         json: async () => ({
           ...activeDetail,
-          boxes: [...activeDetail.boxes, { boxNumber: 2, groupName: null, total: 1, skuBreakdown: [{ sku: 'NOVO-SKU', total: 1 }] }],
+          boxes: [...activeDetail.boxes, { boxNumber: 2, groupName: null, total: 1, skuBreakdown: [{ barcode: '9999999000011', sku: 'NOVO-SKU', name: null, total: 1 }] }],
           grandTotal: 3,
         }),
       });

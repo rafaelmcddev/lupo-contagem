@@ -8,8 +8,12 @@ import { InvoiceCheckList } from '@/components/InvoiceCheckList';
 import { ExportButtons } from '@/components/ExportButtons';
 import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
+import { Pagination } from '@/components/ui/Pagination';
 import { unlockSpeech, useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
 import { enqueueScan, loadQueue, removeFromQueue } from '@/lib/scanQueue';
+
+const BOX_PAGE_SIZE = 30;
+const BOX_SEARCH_THRESHOLD = 8;
 
 interface InvoiceCheckItem {
   barcode: string;
@@ -37,6 +41,8 @@ export default function CountingPage({ params }: { params: { id: string } }) {
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cameraFeedback, setCameraFeedback] = useState<CameraFeedback | null>(null);
+  const [boxQuery, setBoxQuery] = useState('');
+  const [boxPage, setBoxPage] = useState(1);
   const isFlushingRef = useRef(false);
   const cameraFeedbackTokenRef = useRef(0);
   const { announceBox } = useSpeechAnnouncer();
@@ -219,6 +225,21 @@ export default function CountingPage({ params }: { params: { id: string } }) {
 
   const isActive = detail.counting.status === 'active';
 
+  const boxQueryTrimmed = boxQuery.trim().toLowerCase();
+  const filteredBoxes = boxQueryTrimmed
+    ? detail.boxes.filter((b) => {
+        if (String(b.boxNumber).includes(boxQueryTrimmed)) return true;
+        if (b.groupName?.toLowerCase().includes(boxQueryTrimmed)) return true;
+        return b.skuBreakdown.some(
+          (s) =>
+            s.name?.toLowerCase().includes(boxQueryTrimmed) ||
+            s.sku?.toLowerCase().includes(boxQueryTrimmed) ||
+            s.barcode.toLowerCase().includes(boxQueryTrimmed),
+        );
+      })
+    : detail.boxes;
+  const pagedBoxes = filteredBoxes.slice((boxPage - 1) * BOX_PAGE_SIZE, boxPage * BOX_PAGE_SIZE);
+
   return (
     <main className="mx-auto max-w-4xl p-4 sm:p-8">
       <PageHeading>{detail.counting.name}</PageHeading>
@@ -274,7 +295,24 @@ export default function CountingPage({ params }: { params: { id: string } }) {
 
       {detail.invoiceCheck && <InvoiceCheckList items={detail.invoiceCheck} />}
 
-      <BoxList boxes={detail.boxes} />
+      {detail.boxes.length > BOX_SEARCH_THRESHOLD && (
+        <input
+          value={boxQuery}
+          onChange={(e) => {
+            setBoxQuery(e.target.value);
+            setBoxPage(1);
+          }}
+          placeholder="Buscar caixa por número, produto, SKU ou código de barras..."
+          aria-label="Buscar caixas"
+          className="mb-4 w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
+        />
+      )}
+
+      <BoxList boxes={pagedBoxes} />
+      {filteredBoxes.length === 0 && detail.boxes.length > 0 && (
+        <p className="text-lg text-gray-500">Nenhuma caixa encontrada para essa busca.</p>
+      )}
+      <Pagination page={boxPage} pageSize={BOX_PAGE_SIZE} total={filteredBoxes.length} onPageChange={setBoxPage} />
 
       <p className="my-6 text-3xl font-bold">Total: {detail.grandTotal} peças</p>
 
