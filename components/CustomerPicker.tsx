@@ -110,7 +110,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
         onKeyDown={interceptEnter}
         placeholder="Buscar cliente por nome ou telefone..."
         aria-label="Buscar cliente"
-        className="w-full rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
+        className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
       />
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
@@ -149,12 +149,12 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nome do cliente"
-            className="w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base placeholder:text-sm"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
           <PhoneInput
             onChangeValue={setNewPhone}
             placeholder="Telefone"
-            className="w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base placeholder:text-sm"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
           <Button type="button" size="sm" icon={<PlusIcon />} onClick={createCustomer}>
             Cadastrar e selecionar

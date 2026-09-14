@@ -57,7 +57,7 @@ export function PinGate({ children }: { children: React.ReactNode }) {
             onChange={(e) => setPin(e.target.value)}
             placeholder="PIN"
             autoFocus
-            className="w-full rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
+            className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
           <Button type="submit" size="sm" disabled={submitting}>
             {submitting ? 'Verificando...' : 'Entrar'}
