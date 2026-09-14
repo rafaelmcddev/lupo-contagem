@@ -14,6 +14,7 @@ const LINKS = [
   { href: '/history', label: 'Histórico' },
   { href: '/products', label: 'Produtos' },
   { href: '/groups', label: 'Grupos' },
+  { href: '/recompensas', label: 'Recompensas' },
   { href: '/settings', label: 'Configurações' },
 ];
 

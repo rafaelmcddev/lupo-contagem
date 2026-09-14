@@ -15,6 +15,7 @@ describe('Nav', () => {
     expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/history');
     expect(screen.getByRole('link', { name: 'Produtos' })).toHaveAttribute('href', '/products');
     expect(screen.getByRole('link', { name: 'Grupos' })).toHaveAttribute('href', '/groups');
+    expect(screen.getByRole('link', { name: 'Recompensas' })).toHaveAttribute('href', '/recompensas');
     expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute('href', '/settings');
   });
 
