@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from '@/components/ui/icons';
 
 interface Product {
   barcode: string;
@@ -159,26 +160,26 @@ export default function ProductsPage() {
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
       <PageHeading>Produtos</PageHeading>
 
-      <form onSubmit={addProduct} className="mb-2 flex flex-wrap gap-4">
+      <form onSubmit={addProduct} className="mb-2 flex flex-wrap items-center gap-4">
         <input
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
           placeholder="Código de barras"
-          className="w-48 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="w-48 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
         <input
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           placeholder="SKU"
-          className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="w-40 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do produto"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </form>
@@ -207,7 +208,7 @@ export default function ProductsPage() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar por nome, SKU ou código de barras..."
         aria-label="Buscar produtos"
-        className="mb-6 w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+        className="mb-6 w-full rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -221,14 +222,16 @@ export default function ProductsPage() {
                     value={editSku}
                     onChange={(e) => setEditSku(e.target.value)}
                     placeholder="SKU (opcional se não exigido)"
-                    className="w-40 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg placeholder:text-xs"
+                    className="w-40 rounded-lg border-2 border-gray-300 px-3 py-2 text-base placeholder:text-xs"
                   />
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-2 text-lg"
+                    className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-2 text-base"
                   />
-                  <Button type="submit">Salvar</Button>
+                  <Button type="submit" size="sm" icon={<CheckIcon />}>
+                    Salvar
+                  </Button>
                 </div>
                 {editError && <p className="text-base text-red-600">{editError}</p>}
               </form>
@@ -243,10 +246,10 @@ export default function ProductsPage() {
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <Button variant="secondary" onClick={() => startEdit(p)}>
+                <Button size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(p)}>
                   Editar
                 </Button>
-                <Button variant="danger" onClick={() => removeProduct(p.barcode)}>
+                <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeProduct(p.barcode)}>
                   Remover
                 </Button>
               </div>

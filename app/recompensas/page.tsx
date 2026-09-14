@@ -9,7 +9,9 @@ import { Table } from '@/components/ui/Table';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { CustomerPicker } from '@/components/CustomerPicker';
 import { PinGate } from '@/components/PinGate';
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
 import { formatCentsAsBRL } from '@/lib/currency';
+import { formatDateBR } from '@/lib/dates';
 
 interface Customer {
   id: number;
@@ -186,21 +188,21 @@ function RecompensasContent() {
           <CustomerPicker onSelect={setSelectedCustomer} />
         )}
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <input
             type="date"
             value={saleDate}
             onChange={(e) => setSaleDate(e.target.value)}
             aria-label="Data da venda"
-            className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+            className="rounded-lg border-2 border-gray-300 px-3 py-3 text-base"
           />
           <CurrencyInput
             key={valueFieldKey}
             onChangeCents={setValueCents}
             ariaLabel="Valor da venda"
-            className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+            className="w-40 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
           />
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
             {saving ? 'Registrando...' : 'Registrar venda'}
           </Button>
         </div>
@@ -237,7 +239,7 @@ function RecompensasContent() {
                   className="w-full rounded-lg border border-gray-300 px-2 py-1"
                 />
               ) : (
-                s.saleDate
+                formatDateBR(s.saleDate)
               ),
           },
           { header: 'Cliente', render: (s: Sale) => s.customerName },
@@ -259,21 +261,21 @@ function RecompensasContent() {
             render: (s: Sale) =>
               editingId === s.id ? (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => saveEdit(s)} className="text-sm font-semibold text-accent hover:underline">
+                  <Button type="button" size="sm" icon={<CheckIcon />} onClick={() => saveEdit(s)}>
                     Salvar
-                  </button>
-                  <button type="button" onClick={() => setEditingId(null)} className="text-sm text-gray-500 hover:underline">
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" icon={<XIcon />} onClick={() => setEditingId(null)}>
                     Cancelar
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => startEdit(s)} className="text-sm font-semibold text-accent hover:underline">
+                  <Button type="button" size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(s)}>
                     Editar
-                  </button>
-                  <button type="button" onClick={() => removeSale(s.id)} className="text-sm font-semibold text-danger hover:underline">
+                  </Button>
+                  <Button type="button" size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeSale(s.id)}>
                     Remover
-                  </button>
+                  </Button>
                 </div>
               ),
           },

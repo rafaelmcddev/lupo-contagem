@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
+import { PlusIcon, TrashIcon } from '@/components/ui/icons';
 
 interface Group {
   id: number;
@@ -59,20 +60,20 @@ export default function GroupsPage() {
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <PageHeading>Grupos</PageHeading>
-      <form onSubmit={addGroup} className="mb-8 flex flex-col gap-4 sm:flex-row">
+      <form onSubmit={addGroup} className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center">
         <input
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
           placeholder="Prefixo"
-          className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm sm:w-40"
+          className="rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm sm:w-40"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do grupo"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </form>
@@ -83,7 +84,7 @@ export default function GroupsPage() {
               <p className="truncate text-xl font-bold font-mono">{g.prefix}</p>
               <p className="truncate text-lg text-gray-600">{g.name}</p>
             </div>
-            <Button variant="danger" onClick={() => removeGroup(g.id)}>
+            <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeGroup(g.id)}>
               Remover
             </Button>
           </Card>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
+import { CheckIcon } from '@/components/ui/icons';
 
 export default function SettingsPage() {
   const [prefixLength, setPrefixLength] = useState<number | ''>('');
@@ -32,7 +33,7 @@ export default function SettingsPage() {
     <main className="mx-auto max-w-xl p-4 sm:p-8">
       <PageHeading>Configurações</PageHeading>
       <form onSubmit={save} className="flex flex-col gap-4">
-        <label className="text-xl font-medium" htmlFor="prefixLength">
+        <label className="text-lg font-medium" htmlFor="prefixLength">
           Quantidade de dígitos que definem um grupo
         </label>
         <input
@@ -45,9 +46,9 @@ export default function SettingsPage() {
             setPrefixLength(e.target.value === '' ? '' : Number(e.target.value));
             setSaved(false);
           }}
-          className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+          className="rounded-lg border-2 border-gray-300 px-3 py-3 text-base"
         />
-        <label className="flex items-center gap-3 text-xl font-medium" htmlFor="requireSku">
+        <label className="flex items-center gap-3 text-lg font-medium" htmlFor="requireSku">
           <input
             id="requireSku"
             type="checkbox"
@@ -60,7 +61,9 @@ export default function SettingsPage() {
           />
           Exigir SKU ao bipar
         </label>
-        <Button type="submit">Salvar</Button>
+        <Button type="submit" size="sm" icon={<CheckIcon />}>
+          Salvar
+        </Button>
         {saved && <p className="text-lg text-green-600">Salvo!</p>}
       </form>
     </main>

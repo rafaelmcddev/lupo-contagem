@@ -10,8 +10,19 @@ describe('Button', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it('applies large text classes', () => {
+  it('applies large text classes by default', () => {
     render(<Button>Salvar</Button>);
     expect(screen.getByText('Salvar')).toHaveClass('text-xl');
+  });
+
+  it('applies compact text classes for size="sm"', () => {
+    render(<Button size="sm">Salvar</Button>);
+    expect(screen.getByText('Salvar')).toHaveClass('text-base');
+  });
+
+  it('renders an icon alongside the label without changing the accessible name', () => {
+    render(<Button icon={<span data-testid="icon" />}>Adicionar</Button>);
+    expect(screen.getByTestId('icon')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adicionar' })).toBeInTheDocument();
   });
 });

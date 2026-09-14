@@ -8,6 +8,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Table } from '@/components/ui/Table';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { PinGate } from '@/components/PinGate';
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
 import { hasEnoughDigits } from '@/lib/masks';
 
 interface Customer {
@@ -148,20 +149,20 @@ function ClientesContent() {
         </Link>
       </div>
 
-      <form onSubmit={addCustomer} className="mb-6 flex flex-wrap gap-4">
+      <form onSubmit={addCustomer} className="mb-6 flex flex-wrap items-center gap-4">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do cliente"
-          className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
         <PhoneInput
           key={phoneFieldKey}
           onChangeValue={setPhone}
           placeholder="Telefone"
-          className="w-48 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+          className="w-48 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
         />
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </form>
@@ -173,7 +174,7 @@ function ClientesContent() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar por nome ou telefone..."
         aria-label="Buscar clientes"
-        className="mb-6 w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+        className="mb-6 w-full rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
       />
 
       <Table
@@ -209,21 +210,21 @@ function ClientesContent() {
             render: (c: Customer) =>
               editingId === c.id ? (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => saveEdit(c.id)} className="text-sm font-semibold text-accent hover:underline">
+                  <Button type="button" size="sm" icon={<CheckIcon />} onClick={() => saveEdit(c.id)}>
                     Salvar
-                  </button>
-                  <button type="button" onClick={() => setEditingId(null)} className="text-sm text-gray-500 hover:underline">
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" icon={<XIcon />} onClick={() => setEditingId(null)}>
                     Cancelar
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => startEdit(c)} className="text-sm font-semibold text-accent hover:underline">
+                  <Button type="button" size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(c)}>
                     Editar
-                  </button>
-                  <button type="button" onClick={() => removeCustomer(c.id)} className="text-sm font-semibold text-danger hover:underline">
+                  </Button>
+                  <Button type="button" size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeCustomer(c.id)}>
                     Remover
-                  </button>
+                  </Button>
                 </div>
               ),
           },

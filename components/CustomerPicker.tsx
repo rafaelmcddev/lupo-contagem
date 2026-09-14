@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { PlusIcon } from '@/components/ui/icons';
 import { hasEnoughDigits } from '@/lib/masks';
 
 interface Customer {
@@ -109,7 +110,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
         onKeyDown={interceptEnter}
         placeholder="Buscar cliente por nome ou telefone..."
         aria-label="Buscar cliente"
-        className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+        className="w-full rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
       />
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
@@ -148,14 +149,14 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nome do cliente"
-            className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
+            className="w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base placeholder:text-sm"
           />
           <PhoneInput
             onChangeValue={setNewPhone}
             placeholder="Telefone"
-            className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
+            className="w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base placeholder:text-sm"
           />
-          <Button type="button" onClick={createCustomer}>
+          <Button type="button" size="sm" icon={<PlusIcon />} onClick={createCustomer}>
             Cadastrar e selecionar
           </Button>
           {error && <p className="text-sm text-red-600">{error}</p>}
