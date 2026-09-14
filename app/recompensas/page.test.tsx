@@ -16,6 +16,11 @@ function unlock() {
 describe('RecompensasPage', () => {
   it('shows the PIN form when not unlocked', async () => {
     document.cookie = 'store_id=1; path=/';
+    // The page's load() effect fires on mount regardless of PinGate's lock
+    // state (it just never gets a sales list to show while locked) — an
+    // unstubbed fetch here would hit the real network with a relative URL,
+    // which Node's fetch rejects with "Invalid URL" outside a browser.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ sales: [], total: 0 }) }));
     render(<RecompensasPage />);
     await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
   });
