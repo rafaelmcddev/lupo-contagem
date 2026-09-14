@@ -77,4 +77,13 @@ describe('POST /api/rewards/cleanup-expired', () => {
     const [log] = await db.select().from(cashbackCleanupLog);
     expect(log.rowsDeleted).toBe(0);
   });
+
+  it('deletes a sale that hit exactly 30 days — the boundary is inclusive', async () => {
+    const exactlyThirty = await createSale(30);
+    const res = await POST(postReq());
+    const data = await res.json();
+    expect(data.rowsDeleted).toBe(1);
+    const remaining = await db.select().from(sales);
+    expect(remaining.map((s) => s.id)).not.toContain(exactlyThirty.id);
+  });
 });
