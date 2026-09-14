@@ -36,7 +36,7 @@ As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir
 
 Ambas as telas ficam atrás de um PIN por loja — não é controle de usuário (não sabe quem lançou o quê), só uma trava simples contra acesso por pessoas de fora. O PIN de cada loja é uma variável de ambiente, nome derivado do slug: `SALE_PIN_COXIM_MS`, `SALE_PIN_CAMPO_GRANDE_MS`. Digitar o PIN uma vez destrava o dispositivo pra aquela loja (cookie perene) até trocar de loja ou limpar os cookies.
 
-Ainda não há cálculo de saldo/cashback nem envio de WhatsApp — isso é um sub-projeto futuro que usa as vendas registradas aqui.
+A recompensa (5% do valor, válida por 30 dias) é calculada na hora, nunca guardada — veja `lib/rewards.ts`. O aviso ao cliente por WhatsApp funciona em dois modos, trocados automaticamente pela presença das variáveis de ambiente `META_WHATSAPP_TOKEN`/`META_WHATSAPP_PHONE_NUMBER_ID`/`META_WHATSAPP_TEMPLATE_NAME`: sem elas, `/recompensas` mostra uma fila de mensagens pendentes que abrem o WhatsApp Web (`web.whatsapp.com`) já preenchido, usando a sessão logada do navegador — cada uma precisa de um clique manual em "Enviar" dentro do WhatsApp Web, já que nenhum site consegue controlar outro por questão de segurança do navegador. Com as variáveis configuradas, o aviso de compra sai na hora e o lembrete roda sozinho todo dia via Vercel Cron (`vercel.json`, protegido por `CRON_SECRET`) — mas a Meta exige que esse texto seja pré-cadastrado e aprovado como "template" antes, o que só o dono da conta consegue fazer. O relatório de recompensas a vencer e a limpeza de vendas já expiradas (o plano gratuito da Neon tem limite de tamanho) ficam em `/recompensas/relatorio`.
 
 ## Deploy
 
