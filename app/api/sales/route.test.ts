@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
-import { customers } from '@/db/schema';
+import { customers, whatsappSends } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { unlockedRequest } from '@/tests/testSalePin';
@@ -14,6 +14,11 @@ beforeEach(async () => {
   storeId = await getTestStoreId();
   const [customer] = await db.insert(customers).values({ storeId, name: 'Ana', phone: '99999-0000' }).returning();
   customerId = customer.id;
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 function getReq(query = '') {
@@ -35,6 +40,13 @@ describe('/api/sales', () => {
     const data = await res.json();
     expect(data.sales).toEqual([]);
     expect(data.total).toBe(0);
+  });
+
+  it('includes cashbackUsed in the listed sales', async () => {
+    await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 10000 }));
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.sales[0]).toMatchObject({ cashbackUsed: false });
   });
 
   it('creates a sale and includes the customer name when listing', async () => {
@@ -120,5 +132,39 @@ describe('/api/sales', () => {
     const res = await GET(getReq('?sort=name'));
     const data = await res.json();
     expect(data.sales.map((s: { customerName: string }) => s.customerName)).toEqual(['Ana', 'Bia']);
+  });
+
+  it('creates the sale even if the WhatsApp send fails, and logs the failure', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
+
+    const res = await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 10000 }));
+    expect(res.status).toBe(201);
+
+    const rows = await db.select().from(whatsappSends);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ type: 'purchase', status: 'failed', trigger: 'auto' });
+  });
+
+  it('sends the purchase confirmation and logs it as sent when Meta is configured', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+    await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 10000 }));
+
+    const rows = await db.select().from(whatsappSends);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ type: 'purchase', status: 'sent', trigger: 'auto' });
+  });
+
+  it('does not attempt or log any WhatsApp send when the API is not configured', async () => {
+    await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 10000 }));
+
+    const rows = await db.select().from(whatsappSends);
+    expect(rows).toHaveLength(0);
   });
 });

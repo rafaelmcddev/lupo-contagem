@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { customers, sales } from '@/db/schema';
+import { customers, sales, whatsappSends } from '@/db/schema';
+import { formatCentsAsBRL } from '@/lib/currency';
+import { formatDateBR } from '@/lib/dates';
+import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
 import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
+import { isWhatsAppApiConfigured, sendViaMetaApi } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +41,7 @@ export async function GET(req: Request) {
       valueCents: sales.valueCents,
       customerId: sales.customerId,
       customerName: customers.name,
+      cashbackUsed: sales.cashbackUsed,
     })
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
@@ -76,14 +81,42 @@ export async function POST(req: Request) {
   }
 
   const customerRows = await db
-    .select({ id: customers.id })
+    .select({ id: customers.id, name: customers.name, phone: customers.phone })
     .from(customers)
     .where(and(eq(customers.id, customerId), eq(customers.storeId, storeId)))
     .limit(1);
-  if (!customerRows[0]) {
+  const customer = customerRows[0];
+  if (!customer) {
     return NextResponse.json({ error: 'invalid_customer' }, { status: 400 });
   }
 
   const [row] = await db.insert(sales).values({ storeId, customerId, saleDate, valueCents }).returning();
+
+  if (isWhatsAppApiConfigured()) {
+    try {
+      const rewardCents = calculateRewardCents(valueCents);
+      const expiresAt = calculateExpiresAt(saleDate);
+      const result = await sendViaMetaApi(customer.phone, [
+        customer.name,
+        formatDateBR(saleDate),
+        formatCentsAsBRL(rewardCents),
+        formatDateBR(expiresAt),
+      ]);
+      await db.insert(whatsappSends).values({
+        storeId,
+        saleId: row.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        type: 'purchase',
+        status: result.ok ? 'sent' : 'failed',
+        trigger: 'auto',
+        errorMessage: result.error ?? null,
+      });
+    } catch {
+      // Best-effort: the sale above is already committed. A WhatsApp or
+      // logging failure here must never affect the response to the client.
+    }
+  }
+
   return NextResponse.json({ sale: row }, { status: 201 });
 }
