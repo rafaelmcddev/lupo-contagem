@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const LINKS = [
   { href: '/', label: 'Início' },
@@ -13,6 +13,12 @@ const LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  function trocarLoja() {
+    document.cookie = 'store_id=; path=/; max-age=0';
+    router.push('/loja');
+  }
 
   return (
     <nav className="sticky top-0 z-40 border-b border-gray-200 bg-paper">
@@ -33,6 +39,15 @@ export function Nav() {
             </li>
           );
         })}
+        <li className="shrink-0">
+          <button
+            type="button"
+            onClick={trocarLoja}
+            className="block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-canvas hover:text-ink"
+          >
+            Trocar loja
+          </button>
+        </li>
       </ul>
     </nav>
   );

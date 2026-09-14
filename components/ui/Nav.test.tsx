@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { mockUsePathname } from '@/tests/setupMatchers';
 import { Nav } from './Nav';
@@ -25,5 +25,12 @@ describe('Nav', () => {
     render(<Nav />);
     expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows a Trocar loja button that clears the store cookie', () => {
+    document.cookie = 'store_id=1; path=/';
+    render(<Nav />);
+    fireEvent.click(screen.getByRole('button', { name: 'Trocar loja' }));
+    expect(document.cookie).not.toContain('store_id=1');
   });
 });
