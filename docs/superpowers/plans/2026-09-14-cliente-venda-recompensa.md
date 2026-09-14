@@ -1548,7 +1548,11 @@ describe('/api/sales/:id', () => {
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     const [otherCustomer] = await db.insert(customers).values({ storeId: otherStoreId, name: 'Outra loja', phone: '1' }).returning();
     const sale = await createSale(otherStoreId, otherCustomer.id);
-    const res = await PUT(putReq({ customerId: otherCustomer.id, saleDate: '2026-01-01', valueCents: 1000 }), { params: { id: String(sale.id) } });
+    // Body's customerId must belong to the ACTING store (storeId), not the
+    // sale's own store — otherwise the customer-ownership check (400
+    // invalid_customer) fires before the sale-ownership check ever runs,
+    // and this test would stop isolating the condition its name claims to.
+    const res = await PUT(putReq({ customerId, saleDate: '2026-01-01', valueCents: 1000 }), { params: { id: String(sale.id) } });
     expect(res.status).toBe(404);
   });
 
