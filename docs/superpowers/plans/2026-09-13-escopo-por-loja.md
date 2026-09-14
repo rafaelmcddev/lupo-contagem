@@ -1983,6 +1983,8 @@ git commit -m "feat: scope SKU and group lookups by the counting's store in reco
 
 ```ts
 import { beforeEach, describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
+import { settings } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { GET, POST } from './route';
@@ -2014,8 +2016,6 @@ describe('/api/countings', () => {
   });
 
   it('freezes requireSkuUsed as false when the setting was turned off before creation', async () => {
-    const { db } = await import('@/db/client');
-    const { settings } = await import('@/db/schema');
     await db.insert(settings).values({ key: 'require_sku', value: 'false' });
     const res = await POST(postReq({ name: 'Sem SKU' }));
     const data = await res.json();
@@ -2062,8 +2062,6 @@ describe('/api/countings', () => {
   });
 });
 ```
-
-Note: mantive a segunda `it` (`freezes requireSkuUsed...`) com import dinâmico de `db`/`settings` só para não duplicar imports estáticos que já existiam antes — se preferir, mova `import { db } from '@/db/client'; import { settings } from '@/db/schema';` para o topo do arquivo (mais idiomático) e troque o corpo do teste para usá-los diretamente, igual ao arquivo original antes desta tarefa.
 
 - [ ] **Step 2: Reescrever `app/api/countings/[id]/route.test.ts`**
 
