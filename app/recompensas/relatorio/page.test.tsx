@@ -37,6 +37,9 @@ describe('RelatorioPage', () => {
       if (url === '/api/rewards/cleanup-log') {
         return Promise.resolve({ json: async () => ({ log: [] }) });
       }
+      if (url === '/api/rewards/cleanup-expired-count') {
+        return Promise.resolve({ json: async () => ({ count: 0 }) });
+      }
       return Promise.resolve({ json: async () => ({}) });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -65,13 +68,16 @@ describe('RelatorioPage', () => {
     });
   });
 
-  it('runs the cleanup after confirming, and reloads the list and the log', async () => {
+  it('runs the cleanup after confirming, showing the real count, and reloads the list, log, and count', async () => {
     unlock();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       if (url === '/api/rewards/cleanup-expired' && method === 'POST') {
         return Promise.resolve({ ok: true, json: async () => ({ rowsDeleted: 3 }) });
+      }
+      if (url === '/api/rewards/cleanup-expired-count') {
+        return Promise.resolve({ json: async () => ({ count: 3 }) });
       }
       return Promise.resolve({ json: async () => ({ items: [], total: 0, log: [] }) });
     });
@@ -79,18 +85,33 @@ describe('RelatorioPage', () => {
 
     render(<RelatorioPage />);
     await waitFor(() => expect(screen.getByRole('button', { name: /limpar vendas/i })).toBeInTheDocument());
+    await waitFor(() => {
+      const countCall = fetchMock.mock.calls.find(([u]: [string]) => u === '/api/rewards/cleanup-expired-count');
+      expect(countCall).toBeDefined();
+    });
     fireEvent.click(screen.getByRole('button', { name: /limpar vendas/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('3 venda'));
 
     await waitFor(() => {
       const cleanupCall = fetchMock.mock.calls.find(([u, i]: [string, RequestInit?]) => u === '/api/rewards/cleanup-expired' && i?.method === 'POST');
       expect(cleanupCall).toBeDefined();
+    });
+    await waitFor(() => {
+      const countCalls = fetchMock.mock.calls.filter(([u]: [string]) => u === '/api/rewards/cleanup-expired-count');
+      expect(countCalls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
   it('does not run the cleanup if the confirmation is declined', async () => {
     unlock();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ items: [], total: 0, log: [] }) });
+    const fetchMock = vi.fn((url: string) => {
+      if (url === '/api/rewards/cleanup-expired-count') {
+        return Promise.resolve({ json: async () => ({ count: 0 }) });
+      }
+      return Promise.resolve({ json: async () => ({ items: [], total: 0, log: [] }) });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<RelatorioPage />);
@@ -108,6 +129,9 @@ describe('RelatorioPage', () => {
     const fetchMock = vi.fn((url: string) => {
       if (url === '/api/rewards/cleanup-log') {
         return Promise.resolve({ json: async () => ({ log: [{ id: 1, ranAt: '2026-09-01T12:00:00.000Z', rowsDeleted: 4 }] }) });
+      }
+      if (url === '/api/rewards/cleanup-expired-count') {
+        return Promise.resolve({ json: async () => ({ count: 0 }) });
       }
       return Promise.resolve({ json: async () => ({ items: [], total: 0 }) });
     });

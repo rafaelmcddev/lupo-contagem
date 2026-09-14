@@ -15,7 +15,9 @@ Após essa data, o crédito não poderá mais ser utilizado.
 Esperamos você! 💙`;
 
 export function isWhatsAppApiConfigured(): boolean {
-  return Boolean(process.env.META_WHATSAPP_TOKEN && process.env.META_WHATSAPP_PHONE_NUMBER_ID);
+  return Boolean(
+    process.env.META_WHATSAPP_TOKEN && process.env.META_WHATSAPP_PHONE_NUMBER_ID && process.env.META_WHATSAPP_TEMPLATE_NAME,
+  );
 }
 
 export function buildRewardMessage(params: {

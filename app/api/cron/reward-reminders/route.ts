@@ -10,8 +10,12 @@ import { isWhatsAppApiConfigured, sendViaMetaApi } from '@/lib/whatsapp';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'cron_secret_not_configured' }, { status: 500 });
+  }
   const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   if (!isWhatsAppApiConfigured()) {
@@ -34,7 +38,7 @@ export async function GET(req: Request) {
         eq(sales.cashbackUsed, false),
         sql`${sales.saleDate} + interval '25 days' <= current_date`,
         sql`${sales.saleDate} + interval '30 days' > current_date`,
-        sql`not exists (select 1 from whatsapp_sends ws where ws.sale_id = ${sales.id} and ws.type = 'reminder')`,
+        sql`not exists (select 1 from whatsapp_sends ws where ws.sale_id = ${sales.id} and ws.type = 'reminder' and ws.trigger != 'manual')`,
       ),
     );
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { customers, sales, whatsappSends } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
@@ -12,6 +12,10 @@ let storeId: number;
 beforeEach(async () => {
   await resetDb();
   storeId = await getTestStoreId();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 async function createSale(overrides: { saleDate?: string; cashbackUsed?: boolean } = {}) {
@@ -95,5 +99,39 @@ describe('GET /api/whatsapp/pending', () => {
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.pending[0].whatsappUrl).toMatch(/^https:\/\/web\.whatsapp\.com\/send\?phone=55/);
+  });
+
+  it('does not list a sale bought 40 days ago (already expired) as a pending purchase', async () => {
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -40) });
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'purchase')).toBe(false);
+  });
+
+  it('does not list a reminder when the Meta API is fully configured (the cron owns it)', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
+  });
+
+  it('still lists a due reminder even after an earlier manual send (manual does not cancel the automatic one)', async () => {
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
+    await db.insert(whatsappSends).values({
+      storeId,
+      saleId: sale.id,
+      customerName: 'Ana',
+      customerPhone: '99999-0000',
+      type: 'reminder',
+      status: 'opened',
+      trigger: 'manual',
+    });
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.pending).toContainEqual(expect.objectContaining({ saleId: sale.id, type: 'reminder' }));
   });
 });

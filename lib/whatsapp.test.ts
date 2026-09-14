@@ -10,16 +10,28 @@ describe('isWhatsAppApiConfigured', () => {
   it('is false when the env vars are not set', () => {
     vi.stubEnv('META_WHATSAPP_TOKEN', '');
     vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', '');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', '');
     expect(isWhatsAppApiConfigured()).toBe(false);
   });
 
-  it('is true only when both the token and the phone number id are set', () => {
+  it('is true only when the token, the phone number id, and the template name are all set', () => {
     vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
     vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', '');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', '');
     expect(isWhatsAppApiConfigured()).toBe(false);
 
     vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    expect(isWhatsAppApiConfigured()).toBe(false);
+
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
     expect(isWhatsAppApiConfigured()).toBe(true);
+  });
+
+  it('is false when the token and phone number id are set but the template name is not (mid template-approval wait)', () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', '');
+    expect(isWhatsAppApiConfigured()).toBe(false);
   });
 });
 

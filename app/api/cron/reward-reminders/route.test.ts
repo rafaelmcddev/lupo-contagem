@@ -92,4 +92,54 @@ describe('GET /api/cron/reward-reminders', () => {
     const data = await res.json();
     expect(data.sent).toBe(2);
   });
+
+  it('returns 500 without leaking a bypass when CRON_SECRET is unset', async () => {
+    vi.unstubAllEnvs();
+    const res = await GET(
+      new Request('http://localhost/api/cron/reward-reminders', {
+        headers: { authorization: 'Bearer undefined' },
+      }),
+    );
+    expect(res.status).toBe(500);
+  });
+
+  it('still sends the automatic reminder even after an earlier manual send for the same sale', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+    const sale = await createDueSale();
+    await db.insert(whatsappSends).values({
+      storeId,
+      saleId: sale.id,
+      customerName: 'Ana',
+      customerPhone: '99999-0000',
+      type: 'reminder',
+      status: 'opened',
+      trigger: 'manual',
+    });
+
+    const res = await GET(cronReq());
+    const data = await res.json();
+    expect(data.sent).toBe(1);
+  });
+
+  it('logs a failed send with status:failed and does not count it as sent', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { message: 'bad request' } }) }),
+    );
+
+    await createDueSale();
+    const res = await GET(cronReq());
+    const data = await res.json();
+    expect(data.sent).toBe(0);
+
+    const [row] = await db.select().from(whatsappSends);
+    expect(row).toMatchObject({ status: 'failed', errorMessage: 'bad request' });
+  });
 });

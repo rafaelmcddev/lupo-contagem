@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, eq, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, notExists, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales, whatsappSends } from '@/db/schema';
 import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
@@ -7,7 +7,7 @@ import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR } from '@/lib/dates';
 import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
-import { buildRewardMessage, buildWhatsAppWebUrl } from '@/lib/whatsapp';
+import { buildRewardMessage, buildWhatsAppWebUrl, isWhatsAppApiConfigured } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +51,7 @@ export async function GET(req: Request) {
     .where(
       and(
         eq(sales.storeId, storeId),
+        sql`${sales.saleDate} + interval '30 days' > current_date`,
         notExists(
           db
             .select()
@@ -58,26 +59,38 @@ export async function GET(req: Request) {
             .where(and(eq(whatsappSends.saleId, sales.id), eq(whatsappSends.type, 'purchase'))),
         ),
       ),
-    );
+    )
+    .orderBy(asc(sales.saleDate))
+    .limit(50);
 
-  const pendingReminders = await db
-    .select(selectColumns)
-    .from(sales)
-    .innerJoin(customers, eq(sales.customerId, customers.id))
-    .where(
-      and(
-        eq(sales.storeId, storeId),
-        eq(sales.cashbackUsed, false),
-        sql`${sales.saleDate} + interval '25 days' <= current_date`,
-        sql`${sales.saleDate} + interval '30 days' > current_date`,
-        notExists(
-          db
-            .select()
-            .from(whatsappSends)
-            .where(and(eq(whatsappSends.saleId, sales.id), eq(whatsappSends.type, 'reminder'))),
-        ),
-      ),
-    );
+  const pendingReminders = isWhatsAppApiConfigured()
+    ? []
+    : await db
+        .select(selectColumns)
+        .from(sales)
+        .innerJoin(customers, eq(sales.customerId, customers.id))
+        .where(
+          and(
+            eq(sales.storeId, storeId),
+            eq(sales.cashbackUsed, false),
+            sql`${sales.saleDate} + interval '25 days' <= current_date`,
+            sql`${sales.saleDate} + interval '30 days' > current_date`,
+            notExists(
+              db
+                .select()
+                .from(whatsappSends)
+                .where(
+                  and(
+                    eq(whatsappSends.saleId, sales.id),
+                    eq(whatsappSends.type, 'reminder'),
+                    ne(whatsappSends.trigger, 'manual'),
+                  ),
+                ),
+            ),
+          ),
+        )
+        .orderBy(asc(sales.saleDate))
+        .limit(50);
 
   const pending = [
     ...pendingPurchases.map((r) => toItem(r, 'purchase')),

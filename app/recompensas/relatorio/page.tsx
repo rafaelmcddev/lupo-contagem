@@ -45,6 +45,7 @@ function RelatorioContent() {
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(addDaysToIsoDate(todayIso(), 10));
   const [cleanupLog, setCleanupLog] = useState<CleanupLogEntry[]>([]);
+  const [cleanupCount, setCleanupCount] = useState(0);
   const [cleaning, setCleaning] = useState(false);
 
   const load = useCallback(async () => {
@@ -62,6 +63,12 @@ function RelatorioContent() {
     setCleanupLog(data.log ?? []);
   }, []);
 
+  const loadCleanupCount = useCallback(async () => {
+    const res = await fetch('/api/rewards/cleanup-expired-count');
+    const data = await res.json();
+    setCleanupCount(data.count ?? 0);
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -70,8 +77,16 @@ function RelatorioContent() {
     loadCleanupLog();
   }, [loadCleanupLog]);
 
+  useEffect(() => {
+    loadCleanupCount();
+  }, [loadCleanupCount]);
+
   async function runCleanup() {
-    if (!window.confirm('Isso vai apagar permanentemente todas as vendas com cashback já vencido (mais de 30 dias). Essa ação não pode ser desfeita. Confirmar?')) {
+    if (
+      !window.confirm(
+        `Isso vai apagar permanentemente ${cleanupCount} venda(s) com cashback já vencido (mais de 30 dias). Essa ação não pode ser desfeita. Confirmar?`,
+      )
+    ) {
       return;
     }
     setCleaning(true);
@@ -80,6 +95,7 @@ function RelatorioContent() {
       if (res.ok) {
         load();
         loadCleanupLog();
+        loadCleanupCount();
       }
     } finally {
       setCleaning(false);
