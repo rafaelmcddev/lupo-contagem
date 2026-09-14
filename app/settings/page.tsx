@@ -46,7 +46,7 @@ export default function SettingsPage() {
             setPrefixLength(e.target.value === '' ? '' : Number(e.target.value));
             setSaved(false);
           }}
-          className="rounded-lg border border-gray-300 px-3 py-3 text-base focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="rounded-lg border border-gray-300 px-3 py-3 text-base focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <label className="flex items-center gap-3 text-lg font-medium" htmlFor="requireSku">
           <input

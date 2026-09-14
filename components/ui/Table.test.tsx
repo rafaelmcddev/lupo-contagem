@@ -59,7 +59,8 @@ describe('Table', () => {
     );
     const header = screen.getByText('Nome');
     expect(header).toHaveClass('uppercase');
-    expect(header).not.toHaveClass('bg-canvas');
+    const row = screen.getByText('Nome').closest('tr');
+    expect(row).not.toHaveClass('bg-canvas');
   });
 
   it('adds a hover highlight to each row', () => {

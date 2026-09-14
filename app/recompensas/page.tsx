@@ -194,13 +194,13 @@ function RecompensasContent() {
             value={saleDate}
             onChange={(e) => setSaleDate(e.target.value)}
             aria-label="Data da venda"
-            className="rounded-lg border border-gray-300 px-3 py-3 text-base focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+            className="rounded-lg border border-gray-300 px-3 py-3 text-base focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
           />
           <CurrencyInput
             key={valueFieldKey}
             onChangeCents={setValueCents}
             ariaLabel="Valor da venda"
-            className="w-40 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+            className="w-40 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
           />
           <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
             {saving ? 'Registrando...' : 'Registrar venda'}
@@ -219,7 +219,7 @@ function RecompensasContent() {
             value={sort}
             onChange={(e) => changeSort(e.target.value as SortOption)}
             aria-label="Ordenar por"
-            className="rounded-lg border border-gray-300 px-2 py-1"
+            className="rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
           >
             <option value="recent">Mais recente</option>
             <option value="name">Cliente (A-Z)</option>
@@ -236,7 +236,7 @@ function RecompensasContent() {
                   type="date"
                   value={editSaleDate}
                   onChange={(e) => setEditSaleDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                 />
               ) : (
                 formatDateBR(s.saleDate)
@@ -250,7 +250,7 @@ function RecompensasContent() {
                 <CurrencyInput
                   initialCents={s.valueCents}
                   onChangeCents={setEditValueCents}
-                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                 />
               ) : (
                 formatCentsAsBRL(s.valueCents)

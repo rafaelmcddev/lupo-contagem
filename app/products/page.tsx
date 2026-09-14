@@ -165,19 +165,19 @@ export default function ProductsPage() {
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
           placeholder="Código de barras"
-          className="w-48 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="w-48 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <input
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           placeholder="SKU"
-          className="w-40 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="w-40 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do produto"
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}
@@ -208,7 +208,7 @@ export default function ProductsPage() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar por nome, SKU ou código de barras..."
         aria-label="Buscar produtos"
-        className="mb-6 w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+        className="mb-6 w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -222,12 +222,12 @@ export default function ProductsPage() {
                     value={editSku}
                     onChange={(e) => setEditSku(e.target.value)}
                     placeholder="SKU (opcional se não exigido)"
-                    className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-base placeholder:text-xs focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                    className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-base placeholder:text-xs focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                   />
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                   />
                   <Button type="submit" size="sm" icon={<CheckIcon />}>
                     Salvar

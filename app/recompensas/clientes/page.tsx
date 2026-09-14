@@ -154,13 +154,13 @@ function ClientesContent() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do cliente"
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <PhoneInput
           key={phoneFieldKey}
           onChangeValue={setPhone}
           placeholder="Telefone"
-          className="w-48 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+          className="w-48 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
         />
         <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}
@@ -174,7 +174,7 @@ function ClientesContent() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar por nome ou telefone..."
         aria-label="Buscar clientes"
-        className="mb-6 w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+        className="mb-6 w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
       />
 
       <Table
@@ -186,7 +186,7 @@ function ClientesContent() {
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                 />
               ) : (
                 c.name
@@ -199,7 +199,7 @@ function ClientesContent() {
                 <PhoneInput
                   initialValue={editPhone}
                   onChangeValue={setEditPhone}
-                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
                 />
               ) : (
                 c.phone

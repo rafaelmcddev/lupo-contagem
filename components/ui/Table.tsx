@@ -18,7 +18,7 @@ export function Table<T extends { id: number | string }>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+    <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-paper shadow-sm">
       <table className="w-full min-w-[480px] border-collapse text-left">
         <thead>
           <tr className="border-b border-gray-200">
