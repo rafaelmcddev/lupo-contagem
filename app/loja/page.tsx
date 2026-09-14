@@ -21,7 +21,7 @@ export default function LojaPage() {
   }, []);
 
   function selectStore(storeId: number) {
-    document.cookie = `store_id=${storeId}; path=/`;
+    document.cookie = `store_id=${storeId}; path=/; max-age=31536000; samesite=lax`;
     router.push('/');
   }
 

@@ -1,7 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockUsePathname } from '@/tests/setupMatchers';
 import { Nav } from './Nav';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  document.cookie = 'store_id=; path=/; max-age=0';
+});
 
 describe('Nav', () => {
   it('renders a link to every main section', () => {
@@ -29,9 +34,27 @@ describe('Nav', () => {
 
   it('shows a Trocar loja button that clears the store cookie', () => {
     document.cookie = 'store_id=1; path=/';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: async () => ({ stores: [] }),
+      }),
+    );
     render(<Nav />);
     fireEvent.click(screen.getByRole('button', { name: 'Trocar loja' }));
     expect(document.cookie).not.toContain('store_id=1');
+  });
+
+  it('shows the current store name once resolved from the cookie', async () => {
+    document.cookie = 'store_id=1; path=/';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: async () => ({ stores: [{ id: 1, name: 'Coxim-MS', slug: 'coxim-ms' }] }),
+      }),
+    );
+    render(<Nav />);
+    await waitFor(() => expect(screen.getByText('Coxim-MS')).toBeInTheDocument());
   });
 
   it('does not render on the /loja store selection page', () => {

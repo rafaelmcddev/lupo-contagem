@@ -1,7 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+
+function getStoreIdCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)store_id=(\d+)/);
+  return match ? match[1] : null;
+}
 
 const LINKS = [
   { href: '/', label: 'Início' },
@@ -14,6 +20,21 @@ const LINKS = [
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
+
+  const [storeName, setStoreName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pathname === '/loja') return;
+    const storeId = getStoreIdCookie();
+    if (!storeId) return;
+    fetch('/api/stores')
+      .then((r) => r.json())
+      .then((d) => {
+        const store = (d.stores ?? []).find((s: { id: number }) => String(s.id) === storeId);
+        if (store) setStoreName(store.name);
+      })
+      .catch(() => {});
+  }, [pathname]);
 
   function trocarLoja() {
     document.cookie = 'store_id=; path=/; max-age=0';
@@ -43,6 +64,11 @@ export function Nav() {
             </li>
           );
         })}
+        {storeName && (
+          <li className="ml-auto shrink-0 self-center px-2 text-sm font-medium uppercase text-gray-500">
+            {storeName}
+          </li>
+        )}
         <li className="shrink-0">
           <button
             type="button"

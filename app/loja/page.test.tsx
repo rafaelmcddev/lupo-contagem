@@ -25,17 +25,19 @@ describe('LojaPage', () => {
     expect(screen.getByText('Coxim-MS')).toBeInTheDocument();
   });
 
-  it('sets the store_id cookie when a store is chosen', async () => {
+  it('sets a persistent (non-session) store_id cookie when a store is chosen', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         json: async () => ({ stores: [{ id: 1, name: 'Coxim-MS', slug: 'coxim-ms' }] }),
       }),
     );
+    const cookieSetter = vi.spyOn(document, 'cookie', 'set');
     render(<LojaPage />);
     await waitFor(() => expect(screen.getByText('Coxim-MS')).toBeInTheDocument());
 
     fireEvent.click(screen.getByText('Coxim-MS'));
-    expect(document.cookie).toContain('store_id=1');
+    expect(cookieSetter).toHaveBeenCalledWith(expect.stringContaining('max-age='));
+    expect(cookieSetter).toHaveBeenCalledWith(expect.stringContaining('store_id=1'));
   });
 });
