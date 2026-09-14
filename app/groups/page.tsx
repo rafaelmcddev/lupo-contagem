@@ -65,13 +65,13 @@ export default function GroupsPage() {
           value={prefix}
           onChange={(e) => setPrefix(e.target.value)}
           placeholder="Prefixo"
-          className="rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm sm:w-40"
+          className="rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none sm:w-40"
         />
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome do grupo"
-          className="flex-1 rounded-lg border-2 border-gray-300 px-3 py-3 text-base placeholder:text-sm"
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
         />
         <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
           {saving ? 'Adicionando...' : 'Adicionar'}

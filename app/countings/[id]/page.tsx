@@ -289,7 +289,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
             autoFocus
             value={skuInput}
             onChange={(e) => setSkuInput(e.target.value)}
-            className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
+            className="rounded-xl border border-gray-300 px-4 py-4 text-xl focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
           {skuError && <p className="text-lg text-red-600">{skuError}</p>}
           <Button type="submit">Vincular SKU e contar</Button>
@@ -311,7 +311,7 @@ export default function CountingPage({ params }: { params: { id: string } }) {
           }}
           placeholder="Buscar caixa por número, produto, SKU ou código de barras..."
           aria-label="Buscar caixas"
-          className="mb-4 w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
+          className="mb-4 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
         />
       )}
 

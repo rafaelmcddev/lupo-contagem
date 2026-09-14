@@ -120,7 +120,7 @@ export default function HomePage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nome da contagem (ex: contagem geral da loja)"
-            className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
+            className="flex-1 rounded-xl border border-gray-300 px-4 py-4 text-xl placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
           <Button type="submit" disabled={creating}>
             {creating ? 'Criando...' : 'Contagem manual'}
@@ -144,12 +144,12 @@ export default function HomePage() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar contagem pelo nome..."
         aria-label="Buscar contagens abertas"
-        className="mb-4 w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
+        className="mb-4 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
       />
       <div className="grid gap-4 sm:grid-cols-2">
         {countings.map((c) => (
           <Link key={c.id} href={`/countings/${c.id}`}>
-            <Card className="relative hover:border-accent">
+            <Card className="relative hover:border-accent hover:shadow-md">
               <button
                 type="button"
                 aria-label={`Excluir contagem ${c.name}`}
