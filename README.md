@@ -24,6 +24,12 @@ npm test
 
 Requer o mesmo Postgres local rodando (`docker compose up -d`) — a maioria dos testes são de integração reais contra o banco, não mocks. Os testes rodam sequencialmente (`fileParallelism: false` no `vitest.config.ts`) porque compartilham um único banco, limpo via `TRUNCATE` entre testes.
 
+## Lojas (Coxim-MS e Campo Grande-MS)
+
+O sistema roda para duas lojas físicas. Ao abrir qualquer página sem uma loja escolhida, o usuário é redirecionado para `/loja` — a escolha fica salva num cookie `store_id` no navegador (sem expiração curta), e "Trocar loja" no menu limpa esse cookie. Contagens, Produtos (SKUs) e Grupos são independentes por loja; Configurações (prefixo de grupo, exigir SKU) é global para as duas.
+
+As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir uma terceira loja hoje é um `INSERT` manual na tabela `stores`, sem UI de administração (fora do escopo atual).
+
 ## Deploy
 
 Stack de produção: **Vercel** + **Neon** (Postgres), conforme a arquitetura do spec.
@@ -58,4 +64,5 @@ Todo formulário que cria um registro (nova contagem, novo produto, novo grupo) 
 - Sem login — intencional, conforme o spec.
 - O catálogo de Grupos hoje só suporta adicionar/remover pela UI, não renomear (o endpoint de rename existe e está testado; falta ligar isso em `app/groups/page.tsx` — é um follow-up pequeno).
 - O agrupamento por prefixo de código de barras (`getPrefixLength`/`lib/prefix.ts`, fixo em 7 dígitos por padrão) existe internamente mas não tem UI própria — na prática o app funciona igual com ou sem essa parte.
+- O `middleware.ts` que garante a seleção de loja só valida que o cookie `store_id` é numérico — ele roda no runtime Edge do Next.js, que não suporta o driver `pg` usado pelo projeto, então não consulta o banco para confirmar que a loja ainda existe. Como não há UI para remover uma loja, isso não é um problema na prática hoje.
 
