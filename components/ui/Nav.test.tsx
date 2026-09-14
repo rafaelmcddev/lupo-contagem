@@ -33,4 +33,10 @@ describe('Nav', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Trocar loja' }));
     expect(document.cookie).not.toContain('store_id=1');
   });
+
+  it('does not render on the /loja store selection page', () => {
+    mockUsePathname.mockReturnValue('/loja');
+    const { container } = render(<Nav />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

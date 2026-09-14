@@ -20,6 +20,10 @@ export function Nav() {
     router.push('/loja');
   }
 
+  if (pathname === '/loja') {
+    return null;
+  }
+
   return (
     <nav className="sticky top-0 z-40 border-b border-gray-200 bg-paper">
       <ul className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-2 py-2 sm:gap-2 sm:px-4">
