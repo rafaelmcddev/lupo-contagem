@@ -57,6 +57,16 @@ describe('/api/countings', () => {
     expect(data.countings).toHaveLength(0);
   });
 
+  it('paginates results and reports the total', async () => {
+    for (let i = 1; i <= 3; i++) {
+      await POST(postReq({ name: `Contagem ${i}` }));
+    }
+    const res = await GET(getReq('?pageSize=2&page=1'));
+    const data = await res.json();
+    expect(data.countings).toHaveLength(2);
+    expect(data.total).toBe(3);
+  });
+
   it('filters by name search', async () => {
     await POST(postReq({ name: 'Entrega Lupo' }));
     await POST(postReq({ name: 'Contagem geral' }));
@@ -64,6 +74,7 @@ describe('/api/countings', () => {
     const res = await GET(getReq('?q=lupo'));
     const data = await res.json();
     expect(data.countings).toHaveLength(1);
+    expect(data.countings[0].name).toBe('Entrega Lupo');
   });
 
   it('only lists countings from the current store', async () => {
@@ -75,5 +86,12 @@ describe('/api/countings', () => {
     const data = await res.json();
     expect(data.countings).toHaveLength(1);
     expect(data.countings[0].name).toBe('Loja atual');
+  });
+
+  it('returns 400 invalid_json when the body is malformed', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('invalid_json');
   });
 });
