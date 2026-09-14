@@ -11,7 +11,7 @@ import { CustomerPicker } from '@/components/CustomerPicker';
 import { PinGate } from '@/components/PinGate';
 import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
 import { formatCentsAsBRL } from '@/lib/currency';
-import { formatDateBR } from '@/lib/dates';
+import { formatDateBR, todayIso } from '@/lib/dates';
 
 interface Customer {
   id: number;
@@ -30,14 +30,6 @@ interface Sale {
 type SortOption = 'recent' | 'name';
 
 const PAGE_SIZE = 20;
-
-function todayIso(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 export default function RecompensasPage() {
   return (
