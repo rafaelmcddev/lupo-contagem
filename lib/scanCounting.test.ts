@@ -3,14 +3,20 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { countings, groups, skus } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
+import { getTestStoreId } from '@/tests/testStores';
 import { CountingNotActiveError, InvalidBarcodeError, SkuRequiredError, recordScan } from './scanCounting';
 
-beforeEach(resetDb);
+let storeId: number;
+
+beforeEach(async () => {
+  await resetDb();
+  storeId = await getTestStoreId();
+});
 
 async function createActiveCounting(prefixLength = 7, requireSku = true) {
   const [row] = await db
     .insert(countings)
-    .values({ name: 'Teste', prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
+    .values({ storeId, name: 'Teste', prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
     .returning();
   return row;
 }
@@ -64,7 +70,7 @@ describe('recordScan', () => {
   });
 
   it('resolves the group name when a matching prefix is registered', async () => {
-    await db.insert(groups).values({ prefix: '789123', name: 'Cueca Slip Preta' });
+    await db.insert(groups).values({ storeId, prefix: '789123', name: 'Cueca Slip Preta' });
     const counting = await createActiveCounting();
     const outcome = await recordScan(db, counting.id, '7891234000011', 'CUECA-SLIP-P');
     expect(outcome.box?.groupName).toBe('Cueca Slip Preta');
@@ -174,10 +180,17 @@ describe('recordScan', () => {
     // counting where requireSkuUsed is true — must recognize the barcode as
     // already resolved (deliberately skuless), not treat it as unknown and
     // demand a SKU.
-    await db.insert(skus).values({ barcode: '7891234000011', sku: null, name: 'Produto sem SKU' });
+    await db.insert(skus).values({ storeId, barcode: '7891234000011', sku: null, name: 'Produto sem SKU' });
     const counting = await createActiveCounting(7, true);
     const outcome = await recordScan(db, counting.id, '7891234000011');
     expect(outcome.box?.sku).toBeNull();
     expect(outcome.box?.boxNumber).toBe(1);
+  });
+
+  it('does not resolve a SKU registered under the same barcode in a different store', async () => {
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    await db.insert(skus).values({ storeId: otherStoreId, barcode: '7891234000011', sku: 'OUTRA-LOJA' });
+    const counting = await createActiveCounting();
+    await expect(recordScan(db, counting.id, '7891234000011')).rejects.toThrow(SkuRequiredError);
   });
 });

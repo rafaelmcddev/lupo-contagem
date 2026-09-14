@@ -64,19 +64,20 @@ async function findOrCreateBox(db: DbClient, countingId: number, prefix: string)
   throw new Error('failed_to_create_box');
 }
 
-async function findLinkedSku(db: DbClient, barcode: string): Promise<{ found: boolean; sku: string | null }> {
-  const rows = await db.select().from(skus).where(eq(skus.barcode, barcode)).limit(1);
+async function findLinkedSku(db: DbClient, storeId: number, barcode: string): Promise<{ found: boolean; sku: string | null }> {
+  const rows = await db.select().from(skus).where(and(eq(skus.storeId, storeId), eq(skus.barcode, barcode))).limit(1);
   if (!rows[0]) return { found: false, sku: null };
   return { found: true, sku: rows[0].sku };
 }
 
 async function findOrResolveSku(
   db: DbClient,
+  storeId: number,
   barcode: string,
   providedSku: string | undefined,
   requireSku: boolean,
 ): Promise<string | null> {
-  const existing = await findLinkedSku(db, barcode);
+  const existing = await findLinkedSku(db, storeId, barcode);
   // A barcode that's already registered is "resolved" even if it was
   // registered without a SKU (allowed when "Exigir SKU" is off) — it
   // should never be treated the same as a totally unknown barcode.
@@ -91,8 +92,8 @@ async function findOrResolveSku(
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const result = await db.execute(sql`
-        INSERT INTO skus (barcode, sku) VALUES (${barcode}, ${trimmed})
-        ON CONFLICT (barcode) DO NOTHING
+        INSERT INTO skus (store_id, barcode, sku) VALUES (${storeId}, ${barcode}, ${trimmed})
+        ON CONFLICT (store_id, barcode) DO NOTHING
         RETURNING sku
       `);
       const created = (result as any).rows?.[0] as { sku: string } | undefined;
@@ -100,7 +101,7 @@ async function findOrResolveSku(
     } catch (err: any) {
       if (err.code !== '23505') throw err;
     }
-    const retry = await findLinkedSku(db, barcode);
+    const retry = await findLinkedSku(db, storeId, barcode);
     if (retry.found) return retry.sku;
   }
   throw new Error('failed_to_link_sku');
@@ -148,7 +149,7 @@ export async function recordScan(
     }
   }
 
-  const resolvedSku = await findOrResolveSku(db, barcode, sku, counting.requireSkuUsed);
+  const resolvedSku = await findOrResolveSku(db, counting.storeId, barcode, sku, counting.requireSkuUsed);
 
   const box = existingBox ?? (await findOrCreateBox(db, countingId, prefix));
   await db.insert(scans).values({ boxId: box.id, barcode, scannedAt: effectiveNow });
@@ -156,7 +157,7 @@ export async function recordScan(
   const countResult = await db.execute(sql`SELECT COUNT(*)::int AS count FROM scans WHERE box_id = ${box.id}`);
   const total = Number((countResult as any).rows[0].count);
 
-  const allGroups = await db.select().from(groups);
+  const allGroups = await db.select().from(groups).where(eq(groups.storeId, counting.storeId));
   const groupName = resolveGroupName(box.prefix, allGroups);
 
   return {
