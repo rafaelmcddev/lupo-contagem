@@ -140,11 +140,16 @@ existente pra migrar (tabelas novas).
     um mini-formulário inline (nome + telefone) que chama
     `POST /api/customers` e seleciona o cliente recém-criado.
   - Com cliente selecionado: campos de data (`<input type="date">`,
-    default hoje) e valor (input de moeda formatado em R$) + botão
-    "Registrar venda", que chama `POST /api/sales`.
-  - Abaixo do formulário: grade paginada, responsiva, com linhas
-    zebradas, das vendas já lançadas na loja atual (data, cliente, valor,
-    editar/remover), usando `GET /api/sales`.
+    default hoje) e valor (campo com máscara de moeda, formato
+    `R$ 00.000,00`, preenchendo da direita pra esquerda conforme os
+    dígitos são digitados) + botão "Registrar venda", que chama
+    `POST /api/sales`.
+  - Abaixo do formulário: grade das vendas já lançadas na loja atual
+    (data, cliente, valor, editar/remover), usando `GET /api/sales`.
+    Responsiva, com linhas zebradas, **20 registros por página**,
+    ordenada por **compra mais recente primeiro (default)**, com opção
+    de trocar pra ordem alfabética pelo nome do cliente
+    (`GET /api/sales?sort=recent|name`).
 
 ### `/recompensas/clientes`
 
@@ -153,6 +158,19 @@ existente pra migrar (tabelas novas).
   telefone, editar/remover).
 - Protegida pelo mesmo cookie `sale_pin_ok` — se não destravada, mostra o
   mesmo formulário de PIN de `/recompensas`.
+
+## Campos com máscara
+
+- **Telefone** (cadastro/edição de cliente, nas duas telas): máscara
+  `(00) 00000-0000`, preenchida progressivamente conforme os dígitos são
+  digitados. Quando não há telefone existente (cadastro novo), o campo já
+  vem pré-preenchido com o DDD local **67** — o usuário pode apagar e
+  trocar por outro DDD livremente, é só um ponto de partida pra agilizar
+  a digitação.
+- **Valor** (lançamento e edição de venda): máscara de moeda
+  `R$ 00.000,00` — o valor digitado (em centavos) preenche da direita
+  pra esquerda, como um campo de caixa registradora. O valor mandado pra
+  API já vem em centavos (inteiro), sem conversão de string no backend.
 
 ## API
 
@@ -171,8 +189,11 @@ Todas as rotas abaixo (exceto `POST /api/sale-pin/verify`) exigem
   remover um cliente com vendas associadas (fora de escopo tratar esse
   caso agora — sub-projeto 3 pode revisitar quando cashback depender de
   cliente existente).
-- `GET /api/sales?page=&pageSize=` — lista paginada das vendas da loja
-  atual, cada item já incluindo `customerName` (join com `customers`).
+- `GET /api/sales?page=&pageSize=&sort=` — lista paginada das vendas da
+  loja atual, cada item já incluindo `customerName` (join com
+  `customers`). `sort=recent` (default) ordena por data da venda mais
+  recente primeiro; `sort=name` ordena alfabeticamente pelo nome do
+  cliente. A tela `/recompensas` sempre pede `pageSize=20`.
 - `POST /api/sales` — `{ customerId, saleDate, valueCents }`. Valida:
   `customerId` existe e pertence à loja atual (400 `invalid_customer` se
   não), `valueCents` é inteiro positivo (400 `invalid_value`), `saleDate`

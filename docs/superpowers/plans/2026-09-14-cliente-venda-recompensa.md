@@ -216,16 +216,24 @@ git commit -m "feat: add sale PIN cookie helper"
 
 ---
 
-### Task 3: `lib/currency.ts`
+### Task 3: `lib/currency.ts`, `lib/masks.ts` e os inputs mascarados de valor/telefone
 
 **Files:**
 - Create: `lib/currency.ts`
 - Create: `lib/currency.test.ts`
+- Create: `lib/masks.ts`
+- Create: `lib/masks.test.ts`
+- Create: `components/ui/CurrencyInput.tsx`
+- Create: `components/ui/CurrencyInput.test.tsx`
+- Create: `components/ui/PhoneInput.tsx`
+- Create: `components/ui/PhoneInput.test.tsx`
 
 **Interfaces:**
-- Produces: `formatCentsAsBRL(cents: number): string`.
+- Produces: `formatCentsAsBRL(cents: number): string` (`lib/currency.ts`); `maskPhoneDigits(rawDigits: string): string` (`lib/masks.ts`); `CurrencyInput({ initialCents?, onChangeCents, ariaLabel?, className? })` (`components/ui/CurrencyInput.tsx`); `PhoneInput({ initialValue?, onChangeValue, placeholder?, ariaLabel?, className? })` (`components/ui/PhoneInput.tsx`).
 
-- [ ] **Step 1: Escrever o teste**
+Essas 4 peças são pequenas e ligadas entre si (formatação de dinheiro/telefone e os campos que as usam), por isso ficam numa tarefa só — faça cada par teste→implementação na ordem abaixo, com um commit ao final cobrindo tudo.
+
+- [ ] **Step 1: Escrever `lib/currency.test.ts`**
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -273,11 +281,272 @@ export function formatCentsAsBRL(cents: number): string {
 Run: `npx vitest run lib/currency.test.ts`
 Expected: PASS (4 testes).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Escrever `lib/masks.test.ts`**
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { maskPhoneDigits } from './masks';
+
+describe('maskPhoneDigits', () => {
+  it('returns an empty string for no digits', () => {
+    expect(maskPhoneDigits('')).toBe('');
+  });
+
+  it('formats progressively as digits are typed', () => {
+    expect(maskPhoneDigits('6')).toBe('(6');
+    expect(maskPhoneDigits('67')).toBe('(67');
+    expect(maskPhoneDigits('679')).toBe('(67) 9');
+    expect(maskPhoneDigits('67999')).toBe('(67) 999');
+    expect(maskPhoneDigits('6799912')).toBe('(67) 99912');
+    expect(maskPhoneDigits('67999123')).toBe('(67) 99912-3');
+    expect(maskPhoneDigits('67999123456')).toBe('(67) 99912-3456');
+  });
+
+  it('strips non-digit characters before formatting', () => {
+    expect(maskPhoneDigits('(67) 99912-3456')).toBe('(67) 99912-3456');
+  });
+
+  it('truncates to 11 digits', () => {
+    expect(maskPhoneDigits('679991234567890')).toBe('(67) 99912-3456');
+  });
+});
+```
+
+- [ ] **Step 6: Rodar e confirmar que falha**
+
+Run: `npx vitest run lib/masks.test.ts`
+Expected: FAIL — módulo `./masks` não existe.
+
+- [ ] **Step 7: Implementar `lib/masks.ts`**
+
+```ts
+export function maskPhoneDigits(rawDigits: string): string {
+  const digits = rawDigits.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+```
+
+- [ ] **Step 8: Rodar e confirmar que passa**
+
+Run: `npx vitest run lib/masks.test.ts`
+Expected: PASS (4 testes).
+
+- [ ] **Step 9: Escrever `components/ui/CurrencyInput.test.tsx`**
+
+```tsx
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { CurrencyInput } from './CurrencyInput';
+
+describe('CurrencyInput', () => {
+  it('starts empty when no initial value is given', () => {
+    render(<CurrencyInput onChangeCents={() => {}} ariaLabel="Valor" />);
+    expect(screen.getByLabelText('Valor')).toHaveValue('');
+  });
+
+  it('formats typed digits as BRL currency and reports the equivalent cents', () => {
+    const onChangeCents = vi.fn();
+    render(<CurrencyInput onChangeCents={onChangeCents} ariaLabel="Valor" />);
+    const input = screen.getByLabelText('Valor');
+
+    fireEvent.change(input, { target: { value: '4' } });
+    expect(input).toHaveValue('R$ 0,04');
+    expect(onChangeCents).toHaveBeenLastCalledWith(4);
+
+    fireEvent.change(input, { target: { value: '459' } });
+    expect(input).toHaveValue('R$ 4,59');
+    expect(onChangeCents).toHaveBeenLastCalledWith(459);
+
+    fireEvent.change(input, { target: { value: '4590' } });
+    expect(input).toHaveValue('R$ 45,90');
+    expect(onChangeCents).toHaveBeenLastCalledWith(4590);
+  });
+
+  it('ignores non-digit characters typed into the field', () => {
+    const onChangeCents = vi.fn();
+    render(<CurrencyInput onChangeCents={onChangeCents} ariaLabel="Valor" />);
+    fireEvent.change(screen.getByLabelText('Valor'), { target: { value: 'R$ 45,90' } });
+    expect(screen.getByLabelText('Valor')).toHaveValue('R$ 45,90');
+    expect(onChangeCents).toHaveBeenLastCalledWith(4590);
+  });
+
+  it('seeds the display from initialCents', () => {
+    render(<CurrencyInput initialCents={4590} onChangeCents={() => {}} ariaLabel="Valor" />);
+    expect(screen.getByLabelText('Valor')).toHaveValue('R$ 45,90');
+  });
+});
+```
+
+- [ ] **Step 10: Rodar e confirmar que falha**
+
+Run: `npx vitest run components/ui/CurrencyInput.test.tsx`
+Expected: FAIL — módulo `./CurrencyInput` não existe.
+
+- [ ] **Step 11: Implementar `components/ui/CurrencyInput.tsx`**
+
+Campo de valor com máscara "R$ 0,00" que se completa progressivamente — o dígito digitado sempre entra pela direita (como um campo de dinheiro de caixa registradora), igual ao padrão pedido (`R$ 00.000,00`). O componente guarda internamente só os dígitos crus; `onChangeCents` sempre recebe o valor em centavos já pronto pra mandar pra API.
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { formatCentsAsBRL } from '@/lib/currency';
+
+export function CurrencyInput({
+  initialCents = 0,
+  onChangeCents,
+  ariaLabel,
+  className,
+}: {
+  initialCents?: number;
+  onChangeCents: (cents: number) => void;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [digits, setDigits] = useState(initialCents > 0 ? String(initialCents) : '');
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextDigits = e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    setDigits(nextDigits);
+    onChangeCents(nextDigits === '' ? 0 : Number(nextDigits));
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={digits === '' ? '' : formatCentsAsBRL(Number(digits))}
+      onChange={handleChange}
+      placeholder="R$ 0,00"
+      aria-label={ariaLabel}
+      className={className}
+    />
+  );
+}
+```
+
+- [ ] **Step 12: Rodar e confirmar que passa**
+
+Run: `npx vitest run components/ui/CurrencyInput.test.tsx`
+Expected: PASS (4 testes).
+
+- [ ] **Step 13: Escrever `components/ui/PhoneInput.test.tsx`**
+
+```tsx
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { PhoneInput } from './PhoneInput';
+
+describe('PhoneInput', () => {
+  it('pre-fills the local DDD (67) when no initial value is given, to speed up typing', () => {
+    render(<PhoneInput onChangeValue={() => {}} ariaLabel="Telefone" />);
+    expect(screen.getByLabelText('Telefone')).toHaveValue('(67');
+  });
+
+  it('allows replacing the pre-filled DDD entirely', () => {
+    const onChangeValue = vi.fn();
+    render(<PhoneInput onChangeValue={onChangeValue} ariaLabel="Telefone" />);
+    fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11988887777' } });
+    expect(screen.getByLabelText('Telefone')).toHaveValue('(11) 98888-7777');
+    expect(onChangeValue).toHaveBeenLastCalledWith('(11) 98888-7777');
+  });
+
+  it('formats typed digits with the (00) 00000-0000 mask and reports the formatted value', () => {
+    const onChangeValue = vi.fn();
+    render(<PhoneInput onChangeValue={onChangeValue} ariaLabel="Telefone" />);
+    const input = screen.getByLabelText('Telefone');
+
+    fireEvent.change(input, { target: { value: '67999123456' } });
+    expect(input).toHaveValue('(67) 99912-3456');
+    expect(onChangeValue).toHaveBeenLastCalledWith('(67) 99912-3456');
+  });
+
+  it('seeds the display from initialValue', () => {
+    render(<PhoneInput initialValue="67999123456" onChangeValue={() => {}} ariaLabel="Telefone" />);
+    expect(screen.getByLabelText('Telefone')).toHaveValue('(67) 99912-3456');
+  });
+});
+```
+
+- [ ] **Step 14: Rodar e confirmar que falha**
+
+Run: `npx vitest run components/ui/PhoneInput.test.tsx`
+Expected: FAIL — módulo `./PhoneInput` não existe.
+
+- [ ] **Step 15: Implementar `components/ui/PhoneInput.tsx`**
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { maskPhoneDigits } from '@/lib/masks';
+
+// Local DDD (área de Coxim-MS/Campo Grande-MS): pré-preenche o campo pra
+// agilizar a digitação quando não há telefone existente — o usuário
+// continua livre pra apagar e trocar por outro DDD.
+const DEFAULT_DDD = '67';
+
+export function PhoneInput({
+  initialValue = DEFAULT_DDD,
+  onChangeValue,
+  placeholder,
+  ariaLabel,
+  className,
+}: {
+  initialValue?: string;
+  onChangeValue: (formatted: string) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [digits, setDigits] = useState(initialValue.replace(/\D/g, '').slice(0, 11));
+
+  // The field can show a non-empty value (the pre-filled DDD, or a seeded
+  // initialValue) before the user ever types — tell the parent about that
+  // starting value once on mount, so its own state doesn't silently
+  // disagree with what's on screen (e.g. submitting before ever touching
+  // the field).
+  // Deliberately runs once on mount only, to sync the parent with
+  // whatever this field starts showing (the pre-filled DDD, or a seeded
+  // initialValue) — not meant to re-run on later `digits` changes.
+  useEffect(() => {
+    onChangeValue(maskPhoneDigits(digits));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextDigits = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setDigits(nextDigits);
+    onChangeValue(maskPhoneDigits(nextDigits));
+  }
+
+  return (
+    <input
+      type="tel"
+      inputMode="numeric"
+      value={maskPhoneDigits(digits)}
+      onChange={handleChange}
+      placeholder={placeholder ?? '(00) 00000-0000'}
+      aria-label={ariaLabel}
+      className={className}
+    />
+  );
+}
+```
+
+- [ ] **Step 16: Rodar e confirmar que passa**
+
+Run: `npx vitest run components/ui/PhoneInput.test.tsx`
+Expected: PASS (4 testes).
+
+- [ ] **Step 17: Commit**
 
 ```bash
-git add lib/currency.ts lib/currency.test.ts
-git commit -m "feat: add formatCentsAsBRL currency formatter"
+git add lib/currency.ts lib/currency.test.ts lib/masks.ts lib/masks.test.ts components/ui/CurrencyInput.tsx components/ui/CurrencyInput.test.tsx components/ui/PhoneInput.tsx components/ui/PhoneInput.test.tsx
+git commit -m "feat: add currency/phone masking utilities and their masked input components"
 ```
 
 ---
@@ -1091,7 +1360,7 @@ git commit -m "feat: add Customers API routes"
 
 **Interfaces:**
 - Consumes: mesmos helpers da Task 7, mais `customers` de `db/schema.ts` (para o join e a validação de que o cliente pertence à loja).
-- Produces: `GET`/`POST /api/sales`, `PUT`/`DELETE /api/sales/:id`.
+- Produces: `GET`/`POST /api/sales`, `PUT`/`DELETE /api/sales/:id`. `GET /api/sales` aceita `?sort=recent` (default, mais recente primeiro) ou `?sort=name` (alfabético pelo nome do cliente).
 
 - [ ] **Step 1: Escrever `app/api/sales/route.test.ts`**
 
@@ -1195,6 +1464,29 @@ describe('/api/sales', () => {
   it('returns 400 invalid_json when the body is malformed', async () => {
     const res = await POST(unlockedRequest('http://localhost/api/sales', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
+  });
+
+  it('sorts by most recent sale date by default', async () => {
+    await POST(postReq({ customerId, saleDate: '2026-09-10', valueCents: 1000 }));
+    await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 2000 }));
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.sales.map((s: { saleDate: string }) => s.saleDate)).toEqual(['2026-09-14', '2026-09-10']);
+  });
+
+  it('sorts alphabetically by customer name when sort=name', async () => {
+    const [customerB] = await db.insert(customers).values({ storeId, name: 'Bia', phone: '2' }).returning();
+    await POST(postReq({ customerId, saleDate: '2026-09-10', valueCents: 1000 })); // Ana
+    await POST(
+      unlockedRequest('http://localhost/api/sales', storeId, {
+        method: 'POST',
+        body: JSON.stringify({ customerId: customerB.id, saleDate: '2026-09-14', valueCents: 2000 }),
+      }),
+    ); // Bia
+
+    const res = await GET(getReq('?sort=name'));
+    const data = await res.json();
+    expect(data.sales.map((s: { customerName: string }) => s.customerName)).toEqual(['Ana', 'Bia']);
   });
 });
 ```
@@ -1300,7 +1592,7 @@ Expected: FAIL.
 
 ```ts
 import { NextResponse } from 'next/server';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales } from '@/db/schema';
 import { isSalePinUnlocked } from '@/lib/salePin';
@@ -1324,6 +1616,11 @@ export async function GET(req: Request) {
     MAX_PAGE_SIZE,
     Math.max(1, Number(url.searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE),
   );
+  // "recent" (default) shows the newest purchase first; "name" sorts
+  // alphabetically by customer name, falling back to most-recent-first
+  // among sales from the same customer.
+  const sort = url.searchParams.get('sort') === 'name' ? 'name' : 'recent';
+  const orderClauses = sort === 'name' ? [asc(customers.name), desc(sales.saleDate)] : [desc(sales.saleDate), desc(sales.id)];
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(sales).where(eq(sales.storeId, storeId));
   const rows = await db
@@ -1337,11 +1634,11 @@ export async function GET(req: Request) {
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
     .where(eq(sales.storeId, storeId))
-    .orderBy(desc(sales.saleDate), desc(sales.id))
+    .orderBy(...orderClauses)
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  return NextResponse.json({ sales: rows, total: count, page, pageSize });
+  return NextResponse.json({ sales: rows, total: count, page, pageSize, sort });
 }
 
 export async function POST(req: Request) {
@@ -1540,7 +1837,7 @@ git commit -m "feat: add Recompensas link to the nav"
 - Create: `app/recompensas/clientes/page.test.tsx`
 
 **Interfaces:**
-- Consumes: `PinGate` (`components/PinGate.tsx`), `Table` (`components/ui/Table.tsx`), `Button`/`PageHeading`/`Pagination` (já existentes), `GET`/`POST /api/customers`, `PUT`/`DELETE /api/customers/:id`.
+- Consumes: `PinGate` (`components/PinGate.tsx`), `Table` (`components/ui/Table.tsx`), `PhoneInput` (`components/ui/PhoneInput.tsx`, Task 3), `Button`/`PageHeading`/`Pagination` (já existentes), `GET`/`POST /api/customers`, `PUT`/`DELETE /api/customers/:id`.
 
 - [ ] **Step 1: Escrever o teste**
 
@@ -1572,30 +1869,33 @@ describe('ClientesPage', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
-        json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '99999-0000' }], total: 1 }),
+        json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }),
       }),
     );
     render(<ClientesPage />);
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
   });
 
-  it('creates a customer', async () => {
+  it('creates a customer, masking the phone as it is typed', async () => {
     unlock();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ json: async () => ({ customers: [], total: 0 }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ customer: { id: 1, name: 'Ana', phone: '99999-0000' } }) })
-      .mockResolvedValueOnce({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '99999-0000' }], total: 1 }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customer: { id: 1, name: 'Ana', phone: '(67) 99999-0000' } }) })
+      .mockResolvedValueOnce({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }) });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<ClientesPage />);
     await waitFor(() => expect(screen.getByText('Nenhum cliente cadastrado.')).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText('Nome do cliente'), { target: { value: 'Ana' } });
-    fireEvent.change(screen.getByPlaceholderText('Telefone'), { target: { value: '99999-0000' } });
+    fireEvent.change(screen.getByPlaceholderText('Telefone'), { target: { value: '67999990000' } });
+    expect(screen.getByPlaceholderText('Telefone')).toHaveValue('(67) 99999-0000');
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
 
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+    const postCall = fetchMock.mock.calls.find(([u, i]: [string, RequestInit?]) => u === '/api/customers' && i?.method === 'POST');
+    expect(JSON.parse((postCall![1] as RequestInit).body as string)).toEqual({ name: 'Ana', phone: '(67) 99999-0000' });
   });
 
   it('removes a customer after confirming', async () => {
@@ -1603,7 +1903,7 @@ describe('ClientesPage', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '99999-0000' }], total: 1 }) })
+      .mockResolvedValueOnce({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
       .mockResolvedValueOnce({ json: async () => ({ customers: [], total: 0 }) });
     vi.stubGlobal('fetch', fetchMock);
@@ -1633,6 +1933,7 @@ import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
 import { Table } from '@/components/ui/Table';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { PinGate } from '@/components/PinGate';
 
 interface Customer {
@@ -1652,6 +1953,10 @@ export default function ClientesPage() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  // Bumped after a successful add to force PhoneInput to remount and clear
+  // its internal digit state — it isn't a fully controlled input, so
+  // setPhone('') alone would not reset what it displays.
+  const [phoneFieldKey, setPhoneFieldKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -1704,6 +2009,7 @@ export default function ClientesPage() {
       }
       setName('');
       setPhone('');
+      setPhoneFieldKey((k) => k + 1);
       load();
     } finally {
       savingRef.current = false;
@@ -1753,9 +2059,9 @@ export default function ClientesPage() {
             placeholder="Nome do cliente"
             className="flex-1 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
           />
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <PhoneInput
+            key={phoneFieldKey}
+            onChangeValue={setPhone}
             placeholder="Telefone"
             className="w-48 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
           />
@@ -1792,9 +2098,9 @@ export default function ClientesPage() {
               header: 'Telefone',
               render: (c: Customer) =>
                 editingId === c.id ? (
-                  <input
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
+                  <PhoneInput
+                    initialValue={editPhone}
+                    onChangeValue={setEditPhone}
                     className="w-full rounded-lg border border-gray-300 px-2 py-1"
                   />
                 ) : (
@@ -1856,7 +2162,7 @@ git commit -m "feat: add /recompensas/clientes customer management page"
 - Create: `components/CustomerPicker.test.tsx`
 
 **Interfaces:**
-- Consumes: `Button` (`components/ui/Button.tsx`), `GET`/`POST /api/customers`.
+- Consumes: `Button` (`components/ui/Button.tsx`), `PhoneInput` (`components/ui/PhoneInput.tsx`, Task 3), `GET`/`POST /api/customers`.
 - Produces: `CustomerPicker({ onSelect }: { onSelect: (customer: { id: number; name: string; phone: string }) => void })`.
 
 - [ ] **Step 1: Escrever o teste**
@@ -1910,11 +2216,11 @@ describe('CustomerPicker', () => {
     expect(screen.getByPlaceholderText('Nome do cliente')).toHaveValue('Bia');
   });
 
-  it('creates a customer and calls onSelect with the created customer', async () => {
+  it('creates a customer, masking the phone as it is typed, and calls onSelect with the created customer', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ json: async () => ({ customers: [], total: 0 }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ customer: { id: 2, name: 'Bia', phone: '98888-0000' } }) });
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customer: { id: 2, name: 'Bia', phone: '(67) 98888-0000' } }) });
     vi.stubGlobal('fetch', fetchMock);
     const onSelect = vi.fn();
     render(<CustomerPicker onSelect={onSelect} />);
@@ -1922,10 +2228,11 @@ describe('CustomerPicker', () => {
     fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Bia' } });
     await waitFor(() => expect(screen.getByText('Cliente não encontrado.')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Cadastrar novo cliente'));
-    fireEvent.change(screen.getByPlaceholderText('Telefone'), { target: { value: '98888-0000' } });
+    fireEvent.change(screen.getByPlaceholderText('Telefone'), { target: { value: '67988880000' } });
+    expect(screen.getByPlaceholderText('Telefone')).toHaveValue('(67) 98888-0000');
     fireEvent.click(screen.getByRole('button', { name: 'Cadastrar e selecionar' }));
 
-    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ id: 2, name: 'Bia', phone: '98888-0000' }));
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ id: 2, name: 'Bia', phone: '(67) 98888-0000' }));
   });
 });
 ```
@@ -1942,6 +2249,7 @@ Expected: FAIL — módulo `./CustomerPicker` não existe.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 
 interface Customer {
   id: number;
@@ -2062,9 +2370,8 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
             placeholder="Nome do cliente"
             className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
           />
-          <input
-            value={newPhone}
-            onChange={(e) => setNewPhone(e.target.value)}
+          <PhoneInput
+            onChangeValue={setNewPhone}
             placeholder="Telefone"
             className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
           />
@@ -2098,7 +2405,7 @@ git commit -m "feat: add CustomerPicker component (search, select, inline create
 - Create: `app/recompensas/page.test.tsx`
 
 **Interfaces:**
-- Consumes: `PinGate` (Task 5), `CustomerPicker` (Task 11), `Table` (Task 4), `formatCentsAsBRL` (Task 3), `Button`/`PageHeading`/`Pagination` (já existentes), `GET`/`POST /api/sales`, `PUT`/`DELETE /api/sales/:id`.
+- Consumes: `PinGate` (Task 5), `CustomerPicker` (Task 11), `Table` (Task 4), `formatCentsAsBRL` (Task 3), `CurrencyInput` (Task 3), `Button`/`PageHeading`/`Pagination` (já existentes), `GET`/`POST /api/sales`, `PUT`/`DELETE /api/sales/:id`. `GET /api/sales` aceita `?sort=recent|name` (Task 8).
 
 - [ ] **Step 1: Escrever o teste**
 
@@ -2125,23 +2432,42 @@ describe('RecompensasPage', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
   });
 
-  it('lists sales when unlocked', async () => {
+  it('lists sales, requesting 20 per page sorted by most recent by default', async () => {
     unlock();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: async () => ({
-          sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }],
-          total: 1,
-        }),
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: async () => ({
+        sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }],
+        total: 1,
       }),
-    );
+    });
+    vi.stubGlobal('fetch', fetchMock);
     render(<RecompensasPage />);
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     expect(screen.getByText('R$ 45,90')).toBeInTheDocument();
+
+    const [requestedUrl] = fetchMock.mock.calls[0];
+    const params = new URL(requestedUrl, 'http://localhost').searchParams;
+    expect(params.get('pageSize')).toBe('20');
+    expect(params.get('sort')).toBe('recent');
   });
 
-  it('searches, selects a customer, and registers a sale', async () => {
+  it('re-fetches with sort=name when the sort selector is changed', async () => {
+    unlock();
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ sales: [], total: 0 }) });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Nenhuma venda lançada ainda.')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'name' } });
+
+    await waitFor(() => {
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+      const params = new URL(lastCall[0], 'http://localhost').searchParams;
+      expect(params.get('sort')).toBe('name');
+    });
+  });
+
+  it('searches, selects a customer, and registers a sale with a masked currency value', async () => {
     unlock();
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
@@ -2149,7 +2475,7 @@ describe('RecompensasPage', () => {
         return Promise.resolve({ json: async () => ({ sales: [], total: 0 }) });
       }
       if (url.startsWith('/api/customers?q=Ana')) {
-        return Promise.resolve({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '99999-0000' }], total: 1 }) });
+        return Promise.resolve({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }) });
       }
       if (url === '/api/sales' && method === 'POST') {
         return Promise.resolve({
@@ -2168,7 +2494,8 @@ describe('RecompensasPage', () => {
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Ana'));
 
-    fireEvent.change(screen.getByLabelText('Valor da venda'), { target: { value: '45.90' } });
+    fireEvent.change(screen.getByLabelText('Valor da venda'), { target: { value: '4590' } });
+    expect(screen.getByLabelText('Valor da venda')).toHaveValue('R$ 45,90');
     fireEvent.click(screen.getByRole('button', { name: 'Registrar venda' }));
 
     await waitFor(() => {
@@ -2218,6 +2545,7 @@ import { Button } from '@/components/ui/Button';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
 import { Table } from '@/components/ui/Table';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { CustomerPicker } from '@/components/CustomerPicker';
 import { PinGate } from '@/components/PinGate';
 import { formatCentsAsBRL } from '@/lib/currency';
@@ -2236,7 +2564,9 @@ interface Sale {
   customerName: string;
 }
 
-const PAGE_SIZE = 10;
+type SortOption = 'recent' | 'name';
+
+const PAGE_SIZE = 20;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -2246,26 +2576,35 @@ export default function RecompensasPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortOption>('recent');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [saleDate, setSaleDate] = useState(todayIso());
-  const [value, setValue] = useState('');
+  const [valueCents, setValueCents] = useState(0);
+  // Bumped after a successful submit to force CurrencyInput to remount and
+  // clear its internal digit state — see the same pattern in ClientesPage.
+  const [valueFieldKey, setValueFieldKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaleDate, setEditSaleDate] = useState('');
-  const [editValue, setEditValue] = useState('');
+  const [editValueCents, setEditValueCents] = useState(0);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sort });
     const res = await fetch(`/api/sales?${params.toString()}`);
     const data = await res.json();
     setSales(data.sales ?? []);
     setTotal(data.total ?? 0);
-  }, [page]);
+  }, [page, sort]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  function changeSort(next: SortOption) {
+    setSort(next);
+    setPage(1);
+  }
 
   async function registerSale(e: React.FormEvent) {
     e.preventDefault();
@@ -2273,8 +2612,7 @@ export default function RecompensasPage() {
       setFormError('Selecione um cliente.');
       return;
     }
-    const numericValue = Number(value);
-    if (!value || Number.isNaN(numericValue) || numericValue <= 0) {
+    if (valueCents <= 0) {
       setFormError('Informe um valor válido.');
       return;
     }
@@ -2284,11 +2622,7 @@ export default function RecompensasPage() {
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          saleDate,
-          valueCents: Math.round(numericValue * 100),
-        }),
+        body: JSON.stringify({ customerId: selectedCustomer.id, saleDate, valueCents }),
       });
       if (!res.ok) {
         setFormError('Não foi possível registrar a venda.');
@@ -2296,7 +2630,8 @@ export default function RecompensasPage() {
       }
       setSelectedCustomer(null);
       setSaleDate(todayIso());
-      setValue('');
+      setValueCents(0);
+      setValueFieldKey((k) => k + 1);
       setPage(1);
       load();
     } finally {
@@ -2307,20 +2642,15 @@ export default function RecompensasPage() {
   function startEdit(sale: Sale) {
     setEditingId(sale.id);
     setEditSaleDate(sale.saleDate);
-    setEditValue((sale.valueCents / 100).toFixed(2));
+    setEditValueCents(sale.valueCents);
   }
 
   async function saveEdit(sale: Sale) {
-    const numericValue = Number(editValue);
-    if (!editValue || Number.isNaN(numericValue) || numericValue <= 0) return;
+    if (editValueCents <= 0) return;
     await fetch(`/api/sales/${sale.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customerId: sale.customerId,
-        saleDate: editSaleDate,
-        valueCents: Math.round(numericValue * 100),
-      }),
+      body: JSON.stringify({ customerId: sale.customerId, saleDate: editSaleDate, valueCents: editValueCents }),
     });
     setEditingId(null);
     load();
@@ -2369,14 +2699,10 @@ export default function RecompensasPage() {
               aria-label="Data da venda"
               className="rounded-xl border-2 border-gray-300 px-4 py-4 text-xl"
             />
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="Valor (R$)"
-              aria-label="Valor da venda"
+            <CurrencyInput
+              key={valueFieldKey}
+              onChangeCents={setValueCents}
+              ariaLabel="Valor da venda"
               className="w-40 rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
             />
             <Button type="submit" disabled={saving}>
@@ -2386,7 +2712,21 @@ export default function RecompensasPage() {
           {formError && <p className="text-lg text-red-600">{formError}</p>}
         </form>
 
-        <h2 className="mb-4 text-xl font-bold">Vendas lançadas</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-bold">Vendas lançadas</h2>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            Ordenar por
+            <select
+              value={sort}
+              onChange={(e) => changeSort(e.target.value as SortOption)}
+              aria-label="Ordenar por"
+              className="rounded-lg border border-gray-300 px-2 py-1"
+            >
+              <option value="recent">Mais recente</option>
+              <option value="name">Cliente (A-Z)</option>
+            </select>
+          </label>
+        </div>
         <Table
           columns={[
             {
@@ -2408,13 +2748,10 @@ export default function RecompensasPage() {
               header: 'Valor',
               render: (s: Sale) =>
                 editingId === s.id ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="w-24 rounded-lg border border-gray-300 px-2 py-1"
+                  <CurrencyInput
+                    initialCents={s.valueCents}
+                    onChangeCents={setEditValueCents}
+                    className="w-full rounded-lg border border-gray-300 px-2 py-1"
                   />
                 ) : (
                   formatCentsAsBRL(s.valueCents)
@@ -2457,13 +2794,13 @@ export default function RecompensasPage() {
 - [ ] **Step 4: Rodar e confirmar que passa**
 
 Run: `npx vitest run app/recompensas/page.test.tsx`
-Expected: PASS (4 testes).
+Expected: PASS (5 testes).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add app/recompensas/page.tsx app/recompensas/page.test.tsx
-git commit -m "feat: add /recompensas sale registration page"
+git commit -m "feat: add /recompensas sale registration page with masked value input and sort options"
 ```
 
 ---
