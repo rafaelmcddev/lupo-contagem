@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { groups } from '@/db/schema';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -20,19 +22,27 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!name) {
     return NextResponse.json({ error: 'invalid_group' }, { status: 400 });
   }
-  const [row] = await db.update(groups).set({ name }).where(eq(groups.id, id)).returning();
+  const [row] = await db
+    .update(groups)
+    .set({ name })
+    .where(and(eq(groups.id, id), eq(groups.storeId, storeId)))
+    .returning();
   if (!row) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
   return NextResponse.json({ group: row });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  const [row] = await db.delete(groups).where(eq(groups.id, id)).returning();
+  const storeId = getStoreIdFromRequest(req);
+  const [row] = await db
+    .delete(groups)
+    .where(and(eq(groups.id, id), eq(groups.storeId, storeId)))
+    .returning();
   if (!row) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
