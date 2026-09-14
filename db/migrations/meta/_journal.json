@@ -50,6 +50,13 @@
       "when": 1789406361244,
       "tag": "0006_fair_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789415832850,
+      "tag": "0007_next_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

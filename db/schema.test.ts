@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './client';
-import { boxes, countings, groups, scans, settings, skus, stores } from './schema';
+import { boxes, cashbackCleanupLog, countings, customers, groups, sales, scans, settings, skus, stores, whatsappSends } from './schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId } from '@/tests/testStores';
 
@@ -93,5 +93,47 @@ describe('schema', () => {
     await db.insert(skus).values({ storeId, barcode: '7891234999999', sku: 'CUECA-SLIP-M', name: 'Cueca Slip Preta M' });
     const row = await db.select().from(skus).where(eq(skus.barcode, '7891234999999'));
     expect(row[0].name).toBe('Cueca Slip Preta M');
+  });
+
+  it('defaults cashback_used to false on a new sale', async () => {
+    const [customer] = await db.insert(customers).values({ storeId, name: 'Ana', phone: '99999-0000' }).returning();
+    const [sale] = await db
+      .insert(sales)
+      .values({ storeId, customerId: customer.id, saleDate: '2026-09-14', valueCents: 4590 })
+      .returning();
+    expect(sale.cashbackUsed).toBe(false);
+  });
+
+  it('logs a whatsapp send tied to a sale, and keeps the log row when the sale is deleted', async () => {
+    const [customer] = await db.insert(customers).values({ storeId, name: 'Ana', phone: '99999-0000' }).returning();
+    const [sale] = await db
+      .insert(sales)
+      .values({ storeId, customerId: customer.id, saleDate: '2026-09-14', valueCents: 4590 })
+      .returning();
+    const [sent] = await db
+      .insert(whatsappSends)
+      .values({
+        storeId,
+        saleId: sale.id,
+        customerName: 'Ana',
+        customerPhone: '99999-0000',
+        type: 'purchase',
+        status: 'sent',
+        trigger: 'auto',
+      })
+      .returning();
+    expect(sent.saleId).toBe(sale.id);
+
+    await db.delete(sales).where(eq(sales.id, sale.id));
+
+    const [afterDelete] = await db.select().from(whatsappSends).where(eq(whatsappSends.id, sent.id));
+    expect(afterDelete).toBeDefined();
+    expect(afterDelete.saleId).toBeNull();
+  });
+
+  it('logs a cleanup run with the count of rows removed', async () => {
+    const [log] = await db.insert(cashbackCleanupLog).values({ storeId, rowsDeleted: 3 }).returning();
+    expect(log.rowsDeleted).toBe(3);
+    expect(log.ranAt).toBeInstanceOf(Date);
   });
 });

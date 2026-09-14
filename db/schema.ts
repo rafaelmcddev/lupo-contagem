@@ -2,6 +2,8 @@ import { boolean, date, index, integer, pgEnum, pgTable, serial, text, timestamp
 
 export const countingStatus = pgEnum('counting_status', ['active', 'finished']);
 export const countingSource = pgEnum('counting_source', ['manual', 'xml']);
+export const whatsappSendType = pgEnum('whatsapp_send_type', ['purchase', 'reminder']);
+export const whatsappSendStatus = pgEnum('whatsapp_send_status', ['sent', 'opened', 'failed']);
 
 export const stores = pgTable('stores', {
   id: serial('id').primaryKey(),
@@ -114,9 +116,30 @@ export const sales = pgTable(
       .references(() => customers.id, { onDelete: 'cascade' }),
     saleDate: date('sale_date', { mode: 'string' }).notNull(),
     valueCents: integer('value_cents').notNull(),
+    cashbackUsed: boolean('cashback_used').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     storeIdIdx: index('sales_store_id_idx').on(table.storeId),
   }),
 );
+
+export const whatsappSends = pgTable('whatsapp_sends', {
+  id: serial('id').primaryKey(),
+  storeId: integer('store_id').notNull().references(() => stores.id),
+  saleId: integer('sale_id').references(() => sales.id, { onDelete: 'set null' }),
+  customerName: text('customer_name').notNull(),
+  customerPhone: text('customer_phone').notNull(),
+  type: whatsappSendType('type').notNull(),
+  status: whatsappSendStatus('status').notNull(),
+  trigger: text('trigger').notNull(),
+  errorMessage: text('error_message'),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cashbackCleanupLog = pgTable('cashback_cleanup_log', {
+  id: serial('id').primaryKey(),
+  storeId: integer('store_id').notNull().references(() => stores.id),
+  ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),
+  rowsDeleted: integer('rows_deleted').notNull(),
+});
