@@ -26,6 +26,22 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
 
+  // The cashback-used toggle sends only { cashbackUsed }, without the rest of
+  // the sale's fields — handled separately so it doesn't need to re-send (and
+  // re-validate) customer/date/value just to flip one boolean.
+  const isToggleOnly = body.cashbackUsed !== undefined && body.customerId === undefined && body.saleDate === undefined && body.valueCents === undefined;
+  if (isToggleOnly) {
+    const [row] = await db
+      .update(sales)
+      .set({ cashbackUsed: Boolean(body.cashbackUsed) })
+      .where(and(eq(sales.id, id), eq(sales.storeId, storeId)))
+      .returning();
+    if (!row) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    }
+    return NextResponse.json({ sale: row });
+  }
+
   const customerId = Number(body.customerId);
   const saleDate = String(body.saleDate ?? '');
   const valueCents = Number(body.valueCents);

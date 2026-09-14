@@ -88,4 +88,30 @@ describe('/api/sales/:id', () => {
     const res = await PUT(putReq({ customerId, saleDate: '2026-01-01', valueCents: 1000 }), { params: { id: 'abc' } });
     expect(res.status).toBe(404);
   });
+
+  it('toggles cashback_used on its own, without touching customer/date/value', async () => {
+    const sale = await createSale();
+    const res = await PUT(putReq({ cashbackUsed: true }), { params: { id: String(sale.id) } });
+    const data = await res.json();
+    expect(data.sale.cashbackUsed).toBe(true);
+    expect(data.sale.customerId).toBe(sale.customerId);
+    expect(data.sale.saleDate).toBe(sale.saleDate);
+    expect(data.sale.valueCents).toBe(sale.valueCents);
+  });
+
+  it('toggles cashback_used back to false', async () => {
+    const sale = await createSale();
+    await PUT(putReq({ cashbackUsed: true }), { params: { id: String(sale.id) } });
+    const res = await PUT(putReq({ cashbackUsed: false }), { params: { id: String(sale.id) } });
+    const data = await res.json();
+    expect(data.sale.cashbackUsed).toBe(false);
+  });
+
+  it('returns 404 toggling cashback_used on a sale from a different store', async () => {
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    const [otherCustomer] = await db.insert(customers).values({ storeId: otherStoreId, name: 'Outra loja', phone: '1' }).returning();
+    const sale = await createSale(otherStoreId, otherCustomer.id);
+    const res = await PUT(putReq({ cashbackUsed: true }), { params: { id: String(sale.id) } });
+    expect(res.status).toBe(404);
+  });
 });
