@@ -33,4 +33,10 @@ describe('middleware', () => {
     const res = middleware(req);
     expect(res.status).toBe(200);
   });
+
+  it('does not redirect requests to /api/cron/reward-reminders without store_id cookie', () => {
+    const req = new NextRequest('http://localhost/api/cron/reward-reminders');
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+  });
 });
