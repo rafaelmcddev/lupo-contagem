@@ -1,4 +1,4 @@
-import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, date, index, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const countingStatus = pgEnum('counting_status', ['active', 'finished']);
 export const countingSource = pgEnum('counting_source', ['manual', 'xml']);
@@ -89,3 +89,32 @@ export const invoiceItems = pgTable('invoice_items', {
   name: text('name'),
   expectedQty: integer('expected_qty').notNull(),
 });
+
+export const customers = pgTable(
+  'customers',
+  {
+    id: serial('id').primaryKey(),
+    storeId: integer('store_id').notNull().references(() => stores.id),
+    name: text('name').notNull(),
+    phone: text('phone').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    storeIdIdx: index('customers_store_id_idx').on(table.storeId),
+  }),
+);
+
+export const sales = pgTable(
+  'sales',
+  {
+    id: serial('id').primaryKey(),
+    storeId: integer('store_id').notNull().references(() => stores.id),
+    customerId: integer('customer_id').notNull().references(() => customers.id),
+    saleDate: date('sale_date', { mode: 'string' }).notNull(),
+    valueCents: integer('value_cents').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    storeIdIdx: index('sales_store_id_idx').on(table.storeId),
+  }),
+);
