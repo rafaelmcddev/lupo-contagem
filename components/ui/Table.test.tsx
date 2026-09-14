@@ -48,4 +48,29 @@ describe('Table', () => {
     const { container } = render(<Table columns={columns} rows={[{ id: 1, name: 'Ana', age: 30 }]} emptyMessage="Vazio" />);
     expect(container.querySelector('.overflow-x-auto')).not.toBeNull();
   });
+
+  it('gives the header row a light, uppercase treatment instead of a filled background', () => {
+    render(
+      <Table<{ id: number; name: string }>
+        columns={[{ header: 'Nome', render: (r) => r.name }]}
+        rows={[{ id: 1, name: 'Ana' }]}
+        emptyMessage="Vazio"
+      />,
+    );
+    const header = screen.getByText('Nome');
+    expect(header).toHaveClass('uppercase');
+    expect(header).not.toHaveClass('bg-canvas');
+  });
+
+  it('adds a hover highlight to each row', () => {
+    render(
+      <Table<{ id: number; name: string }>
+        columns={[{ header: 'Nome', render: (r) => r.name }]}
+        rows={[{ id: 1, name: 'Ana' }]}
+        emptyMessage="Vazio"
+      />,
+    );
+    const row = screen.getByText('Ana').closest('tr');
+    expect(row).toHaveClass('hover:bg-accent-light/60');
+  });
 });

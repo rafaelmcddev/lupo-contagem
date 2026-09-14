@@ -63,4 +63,9 @@ describe('Nav', () => {
     const { container } = render(<Nav />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('has a subtle shadow separating it from the page content', () => {
+    render(<Nav />);
+    expect(screen.getByRole('navigation')).toHaveClass('shadow-sm');
+  });
 });

@@ -25,4 +25,15 @@ describe('Button', () => {
     expect(screen.getByTestId('icon')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Adicionar' })).toBeInTheDocument();
   });
+
+  it('adds a subtle shadow to the primary variant but not to secondary/danger', () => {
+    const { rerender } = render(<Button>Primary</Button>);
+    expect(screen.getByText('Primary')).toHaveClass('shadow-sm');
+
+    rerender(<Button variant="secondary">Secondary</Button>);
+    expect(screen.getByText('Secondary')).not.toHaveClass('shadow-sm');
+
+    rerender(<Button variant="danger">Danger</Button>);
+    expect(screen.getByText('Danger')).not.toHaveClass('shadow-sm');
+  });
 });

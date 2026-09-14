@@ -47,7 +47,7 @@ export function Nav() {
   }
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-gray-200 bg-paper">
+    <nav className="sticky top-0 z-40 border-b border-gray-200 bg-paper shadow-sm">
       <ul className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-2 py-2 sm:gap-2 sm:px-4">
         {LINKS.map((link) => {
           const isActive = link.href === '/' ? pathname === '/' : pathname?.startsWith(link.href);
