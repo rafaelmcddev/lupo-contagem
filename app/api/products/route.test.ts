@@ -3,12 +3,22 @@ import { db } from '@/db/client';
 import { settings } from '@/db/schema';
 import { REQUIRE_SKU_KEY } from '@/lib/getRequireSku';
 import { resetDb } from '@/tests/resetDb';
+import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { GET, POST } from './route';
 
-beforeEach(resetDb);
+let storeId: number;
+
+beforeEach(async () => {
+  await resetDb();
+  storeId = await getTestStoreId();
+});
 
 function getReq(query = '') {
-  return new Request(`http://localhost/api/products${query}`);
+  return storeRequest(`http://localhost/api/products${query}`, storeId);
+}
+
+function postReq(body: unknown) {
+  return storeRequest('http://localhost/api/products', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 describe('/api/products', () => {
@@ -20,28 +30,39 @@ describe('/api/products', () => {
   });
 
   it('creates a product', async () => {
-    const res = await POST(
-      new Request('http://localhost/api/products', {
-        method: 'POST',
-        body: JSON.stringify({ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P' }),
-      }),
-    );
+    const res = await POST(postReq({ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P' }));
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.product).toMatchObject({ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P' });
   });
 
   it('lists created products ordered by name', async () => {
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '2', sku: 'B', name: 'Zebra' }) }));
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '1', sku: 'A', name: 'Abacaxi' }) }));
+    await POST(postReq({ barcode: '2', sku: 'B', name: 'Zebra' }));
+    await POST(postReq({ barcode: '1', sku: 'A', name: 'Abacaxi' }));
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.products.map((p: { barcode: string }) => p.barcode)).toEqual(['1', '2']);
   });
 
+  it('only lists products from the current store', async () => {
+    await POST(postReq({ barcode: '1', sku: 'A', name: 'Loja atual' }));
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    await POST(
+      storeRequest('http://localhost/api/products', otherStoreId, {
+        method: 'POST',
+        body: JSON.stringify({ barcode: '1', sku: 'B', name: 'Outra loja' }),
+      }),
+    );
+
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.products).toHaveLength(1);
+    expect(data.products[0].name).toBe('Loja atual');
+  });
+
   it('filters by a search term across name, sku, and barcode', async () => {
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta' }) }));
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '7891234000028', sku: 'SUTIA-P', name: 'Sutia Power' }) }));
+    await POST(postReq({ barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta' }));
+    await POST(postReq({ barcode: '7891234000028', sku: 'SUTIA-P', name: 'Sutia Power' }));
 
     const byName = await GET(getReq('?q=cueca'));
     expect((await byName.json()).products).toHaveLength(1);
@@ -58,12 +79,7 @@ describe('/api/products', () => {
 
   it('paginates results', async () => {
     for (let i = 1; i <= 5; i++) {
-      await POST(
-        new Request('http://localhost', {
-          method: 'POST',
-          body: JSON.stringify({ barcode: String(i), sku: `SKU-${i}`, name: `Produto ${i}` }),
-        }),
-      );
+      await POST(postReq({ barcode: String(i), sku: `SKU-${i}`, name: `Produto ${i}` }));
     }
     const page1 = await GET(getReq('?pageSize=2&page=1'));
     const data1 = await page1.json();
@@ -75,25 +91,31 @@ describe('/api/products', () => {
     expect(data3.products).toHaveLength(1);
   });
 
-  it('rejects a duplicate barcode', async () => {
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '1', sku: 'A', name: 'A' }) }));
-    const res = await POST(
-      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '1', sku: 'B', name: 'B' }) }),
-    );
+  it('rejects a duplicate barcode within the same store', async () => {
+    await POST(postReq({ barcode: '1', sku: 'A', name: 'A' }));
+    const res = await POST(postReq({ barcode: '1', sku: 'B', name: 'B' }));
     expect(res.status).toBe(409);
   });
 
-  it('rejects an empty barcode or name regardless of the require-SKU setting', async () => {
+  it('allows the same barcode to be registered in a different store', async () => {
+    await POST(postReq({ barcode: '1', sku: 'A', name: 'A' }));
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
     const res = await POST(
-      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '', sku: 'A', name: 'A' }) }),
+      storeRequest('http://localhost/api/products', otherStoreId, {
+        method: 'POST',
+        body: JSON.stringify({ barcode: '1', sku: 'B', name: 'B' }),
+      }),
     );
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects an empty barcode or name regardless of the require-SKU setting', async () => {
+    const res = await POST(postReq({ barcode: '', sku: 'A', name: 'A' }));
     expect(res.status).toBe(400);
   });
 
   it('rejects an empty sku when "Exigir SKU" is on (the default)', async () => {
-    const res = await POST(
-      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '1', sku: '', name: 'A' }) }),
-    );
+    const res = await POST(postReq({ barcode: '1', sku: '', name: 'A' }));
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('sku_required');
@@ -101,16 +123,14 @@ describe('/api/products', () => {
 
   it('allows an empty sku when "Exigir SKU" is off', async () => {
     await db.insert(settings).values({ key: REQUIRE_SKU_KEY, value: 'false' });
-    const res = await POST(
-      new Request('http://localhost', { method: 'POST', body: JSON.stringify({ barcode: '78947467', sku: '', name: 'Produto qualquer' }) }),
-    );
+    const res = await POST(postReq({ barcode: '78947467', sku: '', name: 'Produto qualquer' }));
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.product).toMatchObject({ barcode: '78947467', sku: null, name: 'Produto qualquer' });
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: '{not json' }));
+    const res = await POST(storeRequest('http://localhost/api/products', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 });

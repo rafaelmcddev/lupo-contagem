@@ -2,14 +2,24 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
+import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { POST } from './route';
 
-beforeEach(resetDb);
+let storeId: number;
+
+beforeEach(async () => {
+  await resetDb();
+  storeId = await getTestStoreId();
+});
+
+function postReq(csv: string) {
+  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ csv }) });
+}
 
 describe('/api/products/import', () => {
   it('creates new products from valid rows', async () => {
     const csv = 'nome;sku;codebar\nCueca Slip Preta P;CUECA-SLIP-P;7891234000011\nCueca Slip Preta M;CUECA-SLIP-M;7891234000028';
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ csv }) }));
+    const res = await POST(postReq(csv));
     const data = await res.json();
     expect(data.created).toBe(2);
     expect(data.updated).toBe(0);
@@ -18,10 +28,10 @@ describe('/api/products/import', () => {
     expect(rows).toHaveLength(2);
   });
 
-  it('overwrites sku and name when the barcode already exists', async () => {
-    await db.insert(skus).values({ barcode: '7891234000011', sku: 'ANTIGO', name: 'Nome antigo' });
+  it('overwrites sku and name when the barcode already exists in the same store', async () => {
+    await db.insert(skus).values({ storeId, barcode: '7891234000011', sku: 'ANTIGO', name: 'Nome antigo' });
     const csv = 'nome;sku;codebar\nNome novo;NOVO-SKU;7891234000011';
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ csv }) }));
+    const res = await POST(postReq(csv));
     const data = await res.json();
     expect(data.created).toBe(0);
     expect(data.updated).toBe(1);
@@ -29,23 +39,35 @@ describe('/api/products/import', () => {
     expect(rows[0]).toMatchObject({ sku: 'NOVO-SKU', name: 'Nome novo' });
   });
 
+  it('creates a new row instead of overwriting when the same barcode exists in a different store', async () => {
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    await db.insert(skus).values({ storeId: otherStoreId, barcode: '7891234000011', sku: 'OUTRA-LOJA', name: 'Outra loja' });
+    const csv = 'nome;sku;codebar\nNome novo;NOVO-SKU;7891234000011';
+    const res = await POST(postReq(csv));
+    const data = await res.json();
+    expect(data.created).toBe(1);
+    expect(data.updated).toBe(0);
+    const rows = await db.select().from(skus);
+    expect(rows).toHaveLength(2);
+  });
+
   it('reports invalid rows without failing the whole import', async () => {
     const csv = 'nome;sku;codebar\nX;Y;abc\nCueca Slip Preta P;CUECA-SLIP-P;7891234000011';
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ csv }) }));
+    const res = await POST(postReq(csv));
     const data = await res.json();
     expect(data.created).toBe(1);
     expect(data.errors).toEqual([{ line: 2, reason: 'código de barras vazio ou não numérico' }]);
   });
 
   it('returns 400 invalid_csv_header for a file missing the required columns', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ csv: 'a;b\n1;2' }) }));
+    const res = await POST(postReq('a;b\n1;2'));
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('invalid_csv_header');
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: '{not json' }));
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 });

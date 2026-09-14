@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { asc, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { getRequireSku } from '@/lib/getRequireSku';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
 export async function GET(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   const url = new URL(req.url);
   const q = (url.searchParams.get('q') ?? '').trim();
   const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
@@ -18,7 +20,8 @@ export async function GET(req: Request) {
     Math.max(1, Number(url.searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE),
   );
 
-  const where = q ? or(ilike(skus.name, `%${q}%`), ilike(skus.sku, `%${q}%`), ilike(skus.barcode, `%${q}%`)) : undefined;
+  const searchCondition = q ? or(ilike(skus.name, `%${q}%`), ilike(skus.sku, `%${q}%`), ilike(skus.barcode, `%${q}%`)) : undefined;
+  const where = searchCondition ? and(eq(skus.storeId, storeId), searchCondition) : eq(skus.storeId, storeId);
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(skus).where(where);
   const rows = await db
@@ -33,6 +36,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'sku_required' }, { status: 400 });
   }
   try {
-    const [row] = await db.insert(skus).values({ barcode, sku: skuInput || null, name }).returning();
+    const [row] = await db.insert(skus).values({ storeId, barcode, sku: skuInput || null, name }).returning();
     return NextResponse.json({ product: row }, { status: 201 });
   } catch (err: any) {
     if (err.code === '23505') {

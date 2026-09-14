@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { getRequireSku } from '@/lib/getRequireSku';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(req: Request, { params }: { params: { barcode: string } }) {
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -24,7 +26,7 @@ export async function PUT(req: Request, { params }: { params: { barcode: string 
   const [row] = await db
     .update(skus)
     .set({ sku: skuInput || null, name })
-    .where(eq(skus.barcode, params.barcode))
+    .where(and(eq(skus.storeId, storeId), eq(skus.barcode, params.barcode)))
     .returning();
   if (!row) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -32,8 +34,12 @@ export async function PUT(req: Request, { params }: { params: { barcode: string 
   return NextResponse.json({ product: row });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { barcode: string } }) {
-  const [row] = await db.delete(skus).where(eq(skus.barcode, params.barcode)).returning();
+export async function DELETE(req: Request, { params }: { params: { barcode: string } }) {
+  const storeId = getStoreIdFromRequest(req);
+  const [row] = await db
+    .delete(skus)
+    .where(and(eq(skus.storeId, storeId), eq(skus.barcode, params.barcode)))
+    .returning();
   if (!row) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }

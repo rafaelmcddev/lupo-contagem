@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { InvalidCsvHeaderError, parseProductsCsv } from '@/lib/parseProductsCsv';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -28,12 +30,12 @@ export async function POST(req: Request) {
   let created = 0;
   let updated = 0;
   for (const row of parsed.rows) {
-    const existing = await db.select().from(skus).where(eq(skus.barcode, row.barcode)).limit(1);
+    const existing = await db.select().from(skus).where(and(eq(skus.storeId, storeId), eq(skus.barcode, row.barcode))).limit(1);
     if (existing[0]) {
-      await db.update(skus).set({ sku: row.sku, name: row.name }).where(eq(skus.barcode, row.barcode));
+      await db.update(skus).set({ sku: row.sku, name: row.name }).where(and(eq(skus.storeId, storeId), eq(skus.barcode, row.barcode)));
       updated++;
     } else {
-      await db.insert(skus).values({ barcode: row.barcode, sku: row.sku, name: row.name });
+      await db.insert(skus).values({ storeId, barcode: row.barcode, sku: row.sku, name: row.name });
       created++;
     }
   }
