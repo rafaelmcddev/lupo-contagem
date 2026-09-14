@@ -112,7 +112,12 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
-      <PageHeading>Contagem de Estoque</PageHeading>
+      <div className="mb-6 flex items-center justify-between">
+        <PageHeading>Contagem de Estoque</PageHeading>
+        <Link href="/history" className="text-sm font-semibold text-accent hover:underline">
+          Histórico
+        </Link>
+      </div>
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row">
         <form onSubmit={createCounting} className="flex flex-1 flex-col gap-4 sm:flex-row">

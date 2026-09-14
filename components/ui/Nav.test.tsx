@@ -11,26 +11,30 @@ afterEach(() => {
 describe('Nav', () => {
   it('renders a link to every main section', () => {
     render(<Nav />);
-    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/');
-    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/history');
+    expect(screen.getByRole('link', { name: 'Contagens' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Produtos' })).toHaveAttribute('href', '/products');
-    expect(screen.getByRole('link', { name: 'Grupos' })).toHaveAttribute('href', '/groups');
     expect(screen.getByRole('link', { name: 'Recompensas' })).toHaveAttribute('href', '/recompensas');
-    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute('href', '/settings');
+  });
+
+  it('does not render Histórico, Grupos, or Configurações — moved out of the main nav', () => {
+    render(<Nav />);
+    expect(screen.queryByRole('link', { name: 'Histórico' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Grupos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Configurações' })).not.toBeInTheDocument();
   });
 
   it('marks the current section as active', () => {
     mockUsePathname.mockReturnValue('/products');
     render(<Nav />);
     expect(screen.getByRole('link', { name: 'Produtos' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Contagens' })).not.toHaveAttribute('aria-current');
   });
 
-  it('marks Início as active only on the exact root path, not on every route', () => {
-    mockUsePathname.mockReturnValue('/history');
+  it('marks Contagens as active only on the exact root path, not on every route', () => {
+    mockUsePathname.mockReturnValue('/products');
     render(<Nav />);
-    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Contagens' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Produtos' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('shows a Trocar loja button that clears the store cookie', () => {

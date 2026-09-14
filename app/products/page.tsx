@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
-import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from '@/components/ui/icons';
+import { Table } from '@/components/ui/Table';
+import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
 
 interface Product {
   barcode: string;
@@ -13,7 +13,7 @@ interface Product {
   name: string | null;
 }
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function ProductsPage() {
@@ -22,7 +22,6 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [loading, setLoading] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
@@ -44,17 +43,12 @@ export default function ProductsPage() {
   }, [query]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
-      if (debouncedQuery) params.set('q', debouncedQuery);
-      const res = await fetch(`/api/products?${params.toString()}`);
-      const data = await res.json();
-      setProducts(data.products);
-      setTotal(data.total ?? data.products.length);
-    } finally {
-      setLoading(false);
-    }
+    const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (debouncedQuery) params.set('q', debouncedQuery);
+    const res = await fetch(`/api/products?${params.toString()}`);
+    const data = await res.json();
+    setProducts(data.products);
+    setTotal(data.total ?? data.products.length);
   }, [page, debouncedQuery]);
 
   useEffect(() => {
@@ -113,8 +107,7 @@ export default function ProductsPage() {
     setEditError(null);
   }
 
-  async function saveEdit(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveEdit() {
     if (!editingBarcode) return;
     const res = await fetch(`/api/products/${editingBarcode}`, {
       method: 'PUT',
@@ -211,58 +204,67 @@ export default function ProductsPage() {
         className="mb-6 w-full rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {products.map((p) =>
-          editingBarcode === p.barcode ? (
-            <Card key={p.barcode} className="sm:col-span-2">
-              <form onSubmit={saveEdit} className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-4">
-                  <p className="text-xl font-bold">{p.barcode}</p>
-                  <input
-                    value={editSku}
-                    onChange={(e) => setEditSku(e.target.value)}
-                    placeholder="SKU (opcional se não exigido)"
-                    className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-base placeholder:text-xs focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
-                  />
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
-                  />
-                  <Button type="submit" size="sm" icon={<CheckIcon />}>
-                    Salvar
-                  </Button>
-                </div>
-                {editError && <p className="text-base text-red-600">{editError}</p>}
-              </form>
-            </Card>
-          ) : (
-            <Card key={p.barcode} className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="truncate text-xl font-bold">{p.name ?? 'Sem nome'}</p>
-                <p className="truncate text-sm text-gray-600">
+      {editError && <p className="mb-4 text-lg text-red-600">{editError}</p>}
+
+      <Table
+        columns={[
+          {
+            header: 'Nome',
+            render: (p: Product) =>
+              editingBarcode === p.barcode ? (
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
+                />
+              ) : (
+                p.name ?? 'Sem nome'
+              ),
+          },
+          {
+            header: 'SKU / Código de barras',
+            render: (p: Product) =>
+              editingBarcode === p.barcode ? (
+                <input
+                  value={editSku}
+                  onChange={(e) => setEditSku(e.target.value)}
+                  placeholder="SKU (opcional se não exigido)"
+                  className="w-full rounded-lg border border-gray-300 px-2 py-1 placeholder:text-xs focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
+                />
+              ) : (
+                <>
                   <span className="font-mono">{p.sku ?? p.barcode}</span>
                   {p.sku && <span className="ml-1 font-mono text-gray-400">({p.barcode})</span>}
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(p)}>
-                  Editar
-                </Button>
-                <Button size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeProduct(p.barcode)}>
-                  Remover
-                </Button>
-              </div>
-            </Card>
-          ),
-        )}
-        {!loading && products.length === 0 && (
-          <p className="text-xl text-gray-500 sm:col-span-2">
-            {debouncedQuery ? 'Nenhum produto encontrado para essa busca.' : 'Nenhum produto cadastrado.'}
-          </p>
-        )}
-      </div>
-
+                </>
+              ),
+          },
+          {
+            header: 'Ações',
+            render: (p: Product) =>
+              editingBarcode === p.barcode ? (
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" icon={<CheckIcon />} onClick={saveEdit}>
+                    Salvar
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" icon={<XIcon />} onClick={() => setEditingBarcode(null)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(p)}>
+                    Editar
+                  </Button>
+                  <Button type="button" size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeProduct(p.barcode)}>
+                    Remover
+                  </Button>
+                </div>
+              ),
+          },
+        ]}
+        rows={products.map((p) => ({ ...p, id: p.barcode }))}
+        emptyMessage={debouncedQuery ? 'Nenhum produto encontrado para essa busca.' : 'Nenhum produto cadastrado.'}
+      />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
     </main>
   );

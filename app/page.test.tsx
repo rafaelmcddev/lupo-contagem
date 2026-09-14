@@ -88,4 +88,10 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByText('Não parece ser um XML de NF-e.')).toBeInTheDocument());
   });
+
+  it('links to the countings history', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ countings: [] }) }));
+    render(<HomePage />);
+    expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/history');
+  });
 });

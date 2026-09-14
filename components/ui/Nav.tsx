@@ -10,12 +10,9 @@ function getStoreIdCookie(): string | null {
 }
 
 const LINKS = [
-  { href: '/', label: 'Início' },
-  { href: '/history', label: 'Histórico' },
+  { href: '/', label: 'Contagens' },
   { href: '/products', label: 'Produtos' },
-  { href: '/groups', label: 'Grupos' },
   { href: '/recompensas', label: 'Recompensas' },
-  { href: '/settings', label: 'Configurações' },
 ];
 
 export function Nav() {
