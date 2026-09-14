@@ -55,3 +55,11 @@ export function XIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SendIcon({ className }: IconProps) {
+  return (
+    <svg {...commonProps} className={className}>
+      <path d="m3 3 18 9-18 9 4-9-4-9Z" />
+    </svg>
+  );
+}

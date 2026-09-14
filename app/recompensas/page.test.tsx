@@ -133,6 +133,7 @@ describe('RecompensasPage', () => {
       .mockResolvedValueOnce({
         json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
       })
+      .mockResolvedValueOnce({ json: async () => ({ pending: [] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
       .mockResolvedValueOnce({ json: async () => ({ sales: [], total: 0 }) });
     vi.stubGlobal('fetch', fetchMock);
@@ -152,6 +153,7 @@ describe('RecompensasPage', () => {
       .mockResolvedValueOnce({
         json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
       })
+      .mockResolvedValueOnce({ json: async () => ({ pending: [] }) })
       .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -161,5 +163,118 @@ describe('RecompensasPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
     await waitFor(() => expect(screen.getByText('Não foi possível remover essa venda.')).toBeInTheDocument());
     expect(screen.getByText('Ana')).toBeInTheDocument();
+  });
+
+  it('shows the calculated reward live as the sale value is typed', async () => {
+    unlock();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ sales: [], total: 0, pending: [] }) }));
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Nenhuma venda lançada ainda.')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Valor da venda'), { target: { value: '10000' } });
+    expect(screen.getByText('R$ 5,00')).toBeInTheDocument(); // 5% of R$100,00
+  });
+
+  it('shows a reward column in the sales table', async () => {
+    unlock();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1, pending: [] }),
+    }));
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+    expect(screen.getByText('R$ 5,00')).toBeInTheDocument();
+  });
+
+  it('toggles cashback used for a sale', async () => {
+    unlock();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url.startsWith('/api/sales?')) {
+        return Promise.resolve({ json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1 }) });
+      }
+      if (url === '/api/whatsapp/pending') {
+        return Promise.resolve({ json: async () => ({ pending: [] }) });
+      }
+      if (url === '/api/sales/1' && method === 'PUT') {
+        return Promise.resolve({ ok: true, json: async () => ({ sale: { id: 1, cashbackUsed: true } }) });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar como usado' }));
+
+    await waitFor(() => {
+      const putCall = fetchMock.mock.calls.find(([u, i]: [string, RequestInit?]) => u === '/api/sales/1' && i?.method === 'PUT');
+      expect(putCall).toBeDefined();
+      expect(JSON.parse((putCall![1] as RequestInit).body as string)).toEqual({ cashbackUsed: true });
+    });
+  });
+
+  it('shows a pending-messages banner and processes one at a time', async () => {
+    unlock();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url.startsWith('/api/sales?')) {
+        return Promise.resolve({ json: async () => ({ sales: [], total: 0 }) });
+      }
+      if (url === '/api/whatsapp/pending') {
+        return Promise.resolve({
+          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=x' }] }),
+        });
+      }
+      if (url === '/api/whatsapp/pending/purchase/1/mark-opened' && method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText(/1 mensagem pendente/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Processar próxima' }));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=1&text=x', '_blank'));
+    await waitFor(() => {
+      const markCall = fetchMock.mock.calls.find(([u]: [string]) => u === '/api/whatsapp/pending/purchase/1/mark-opened');
+      expect(markCall).toBeDefined();
+    });
+  });
+
+  it('does not show the pending banner when there is nothing pending', async () => {
+    unlock();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ sales: [], total: 0, pending: [] }) }));
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Nenhuma venda lançada ainda.')).toBeInTheDocument());
+    expect(screen.queryByText(/mensagem pendente/)).not.toBeInTheDocument();
+  });
+
+  it('sends a manual reminder and opens WhatsApp Web', async () => {
+    unlock();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url.startsWith('/api/sales?')) {
+        return Promise.resolve({ json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1 }) });
+      }
+      if (url === '/api/whatsapp/pending') {
+        return Promise.resolve({ json: async () => ({ pending: [] }) });
+      }
+      if (url === '/api/sales/1/send-reminder' && method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => ({ whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=lembrete' }) });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar lembrete' }));
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=1&text=lembrete', '_blank'));
   });
 });

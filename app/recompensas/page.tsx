@@ -9,9 +9,10 @@ import { Table } from '@/components/ui/Table';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { CustomerPicker } from '@/components/CustomerPicker';
 import { PinGate } from '@/components/PinGate';
-import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
+import { CheckIcon, PencilIcon, PlusIcon, SendIcon, TrashIcon, XIcon } from '@/components/ui/icons';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR, todayIso } from '@/lib/dates';
+import { calculateRewardCents } from '@/lib/rewards';
 
 interface Customer {
   id: number;
@@ -25,6 +26,7 @@ interface Sale {
   valueCents: number;
   customerId: number;
   customerName: string;
+  cashbackUsed: boolean;
 }
 
 type SortOption = 'recent' | 'name';
@@ -64,6 +66,8 @@ function RecompensasContent() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaleDate, setEditSaleDate] = useState('');
   const [editValueCents, setEditValueCents] = useState(0);
+  const [pending, setPending] = useState<Array<{ saleId: number; type: 'purchase' | 'reminder'; customerName: string; whatsappUrl: string }>>([]);
+  const [processingPending, setProcessingPending] = useState(false);
   const savingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -77,6 +81,16 @@ function RecompensasContent() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadPending = useCallback(async () => {
+    const res = await fetch('/api/whatsapp/pending');
+    const data = await res.json();
+    setPending(data.pending ?? []);
+  }, []);
+
+  useEffect(() => {
+    loadPending();
+  }, [loadPending]);
 
   function changeSort(next: SortOption) {
     setSort(next);
@@ -152,14 +166,68 @@ function RecompensasContent() {
     load();
   }
 
+  async function processNextPending() {
+    const next = pending[0];
+    if (!next) return;
+    setProcessingPending(true);
+    try {
+      window.open(next.whatsappUrl, '_blank');
+      await fetch(`/api/whatsapp/pending/${next.type}/${next.saleId}/mark-opened`, { method: 'POST' });
+      setPending((current) => current.slice(1));
+    } finally {
+      setProcessingPending(false);
+    }
+  }
+
+  async function toggleCashbackUsed(sale: Sale) {
+    setActionError(null);
+    const res = await fetch(`/api/sales/${sale.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cashbackUsed: !sale.cashbackUsed }),
+    });
+    if (!res.ok) {
+      setActionError('Não foi possível atualizar o cashback dessa venda.');
+      return;
+    }
+    load();
+  }
+
+  async function sendReminder(sale: Sale) {
+    setActionError(null);
+    const res = await fetch(`/api/sales/${sale.id}/send-reminder`, { method: 'POST' });
+    if (!res.ok) {
+      setActionError('Não foi possível preparar o lembrete dessa venda.');
+      return;
+    }
+    const data = await res.json();
+    window.open(data.whatsappUrl, '_blank');
+  }
+
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
       <div className="mb-6 flex items-center justify-between">
         <PageHeading>Recompensas</PageHeading>
-        <Link href="/recompensas/clientes" className="text-sm font-semibold text-accent hover:underline">
-          Gerenciar clientes
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/recompensas/relatorio" className="text-sm font-semibold text-accent hover:underline">
+            Relatório de vencimentos
+          </Link>
+          <Link href="/recompensas/clientes" className="text-sm font-semibold text-accent hover:underline">
+            Gerenciar clientes
+          </Link>
+        </div>
       </div>
+
+      {pending.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-light bg-warning-light px-4 py-3">
+          <span className="text-sm font-semibold text-ink">
+            {pending.length} {pending.length === 1 ? 'mensagem pendente' : 'mensagens pendentes'}
+          </span>
+          <Button type="button" size="sm" disabled={processingPending} onClick={processNextPending}>
+            {processingPending ? 'Abrindo...' : 'Processar próxima'}
+          </Button>
+        </div>
+      )}
 
       <form onSubmit={registerSale} className="mb-10 flex flex-col gap-4">
         {selectedCustomer ? (
@@ -194,6 +262,11 @@ function RecompensasContent() {
             ariaLabel="Valor da venda"
             className="w-40 rounded-lg border border-gray-300 px-3 py-3 text-base placeholder:text-sm focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
           />
+          {valueCents > 0 && (
+            <span className="text-sm text-gray-600">
+              Recompensa: <span className="font-semibold text-accent">{formatCentsAsBRL(calculateRewardCents(valueCents))}</span>
+            </span>
+          )}
           <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
             {saving ? 'Registrando...' : 'Registrar venda'}
           </Button>
@@ -249,6 +322,23 @@ function RecompensasContent() {
               ),
           },
           {
+            header: 'Recompensa',
+            render: (s: Sale) => formatCentsAsBRL(calculateRewardCents(s.valueCents)),
+          },
+          {
+            header: 'Cashback',
+            render: (s: Sale) =>
+              <Button
+                type="button"
+                size="sm"
+                variant={s.cashbackUsed ? 'secondary' : 'primary'}
+                icon={s.cashbackUsed ? <XIcon /> : <CheckIcon />}
+                onClick={() => toggleCashbackUsed(s)}
+              >
+                {s.cashbackUsed ? 'Desmarcar' : 'Marcar como usado'}
+              </Button>,
+          },
+          {
             header: 'Ações',
             render: (s: Sale) =>
               editingId === s.id ? (
@@ -264,6 +354,9 @@ function RecompensasContent() {
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(s)}>
                     Editar
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" icon={<SendIcon />} onClick={() => sendReminder(s)}>
+                    Enviar lembrete
                   </Button>
                   <Button type="button" size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeSale(s.id)}>
                     Remover
