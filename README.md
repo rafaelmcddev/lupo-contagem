@@ -30,6 +30,14 @@ O sistema roda para duas lojas físicas. Ao abrir qualquer página sem uma loja 
 
 As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir uma terceira loja hoje é um `INSERT` manual na tabela `stores`, sem UI de administração (fora do escopo atual).
 
+## Programa de recompensa: clientes e vendas
+
+`/recompensas` registra vendas (cliente, data, valor) pro programa de cashback — sem produto, já que a venda em si continua sendo lançada no sistema de vendas da loja. A tela busca clientes já cadastrados (com opção de cadastrar um novo na hora, telefone com máscara `(00) 00000-0000` e DDD local pré-preenchido) e lista as vendas já lançadas naquela loja, 20 por página, ordenadas por compra mais recente (com opção de ordenar por nome do cliente). `/recompensas/clientes` gerencia o cadastro de clientes separadamente.
+
+Ambas as telas ficam atrás de um PIN por loja — não é controle de usuário (não sabe quem lançou o quê), só uma trava simples contra acesso por pessoas de fora. O PIN de cada loja é uma variável de ambiente, nome derivado do slug: `SALE_PIN_COXIM_MS`, `SALE_PIN_CAMPO_GRANDE_MS`. Digitar o PIN uma vez destrava o dispositivo pra aquela loja (cookie perene) até trocar de loja ou limpar os cookies.
+
+Ainda não há cálculo de saldo/cashback nem envio de WhatsApp — isso é um sub-projeto futuro que usa as vendas registradas aqui.
+
 ## Deploy
 
 Stack de produção: **Vercel** + **Neon** (Postgres), conforme a arquitetura do spec.
@@ -51,6 +59,10 @@ Toda rota em `app/api/**/route.ts` **precisa** exportar `export const dynamic = 
 ## Convenção: formulários de criação
 
 Todo formulário que cria um registro (nova contagem, novo produto, novo grupo) guarda um `useRef` booleano (ex: `creatingRef`) checado no início do handler de submit, além do `useState` que desabilita visualmente o botão. Só o `useState` não basta: dois cliques/toques rápidos disparam dois `submit` antes do primeiro re-render desabilitar o botão, criando registros duplicados — o `ref` bloqueia isso de forma síncrona. Ao adicionar um novo formulário de criação, replique o padrão.
+
+## Convenção: nunca aninhar `<form>`
+
+`RecompensasPage` (lançamento de venda) embrulha a tela inteira num `<form>`; qualquer componente usado ali dentro (como `CustomerPicker`, com seu cadastro inline de cliente) **não pode** ter seu próprio `<form>` — HTML não permite `<form>` dentro de `<form>`. Isso passa despercebido em testes de componente (que renderizam só no client, sem passar pelo parser HTML de verdade), mas quebra de verdade na página real: o Next.js faz SSR, o navegador parseia o HTML recebido e corrige a estrutura inválida sozinho, silenciosamente — o que faz o botão de submit do form interno simplesmente parar de funcionar, sem erro nenhum no console além de um aviso de hidratação fácil de ignorar. Um componente pensado pra ser usado dentro de outro formulário deve disparar sua ação via um botão `type="button"` + `onClick`, nunca via `<form onSubmit>`.
 
 ## Câmera: feedback sem depender de áudio
 
