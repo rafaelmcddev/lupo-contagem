@@ -14,15 +14,34 @@ function unlock() {
 }
 
 describe('ClientesPage', () => {
-  it('shows the PIN form when not unlocked', async () => {
+  it('shows the PIN form when not unlocked, without ever calling fetch', async () => {
     document.cookie = 'store_id=1; path=/';
-    // The page's load() effect fires on mount regardless of PinGate's lock
-    // state (it just never gets a customer list to show while locked) — an
-    // unstubbed fetch here would hit the real network with a relative URL,
-    // which Node's fetch rejects with "Invalid URL" outside a browser.
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ customers: [], total: 0 }) }));
+    // The customer-list content (and its load() effect) now only mounts
+    // once PinGate actually unlocks — a regression guard for the bug where
+    // load() fired on every mount regardless of lock state.
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     render(<ClientesPage />);
     await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('loads the customer list immediately after successfully entering the PIN, with no reload needed', async () => {
+    document.cookie = 'store_id=1; path=/';
+    const fetchMock = vi.fn((url: string) => {
+      if (url === '/api/sale-pin/verify') {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      }
+      return Promise.resolve({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ClientesPage />);
+    await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('PIN'), { target: { value: '1234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
   });
 
   it('lists customers when unlocked', async () => {
@@ -59,6 +78,21 @@ describe('ClientesPage', () => {
     expect(JSON.parse((postCall![1] as RequestInit).body as string)).toEqual({ name: 'Ana', phone: '(67) 99999-0000' });
   });
 
+  it('rejects a phone number that is just the pre-filled DDD', async () => {
+    unlock();
+    const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ customers: [], total: 0 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ClientesPage />);
+    await waitFor(() => expect(screen.getByText('Nenhum cliente cadastrado.')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('Nome do cliente'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }));
+
+    expect(await screen.findByText('Preencha nome e telefone.')).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([u, i]: [string, RequestInit?]) => u === '/api/customers' && i?.method === 'POST')).toBe(false);
+  });
+
   it('removes a customer after confirming', async () => {
     unlock();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -74,5 +108,22 @@ describe('ClientesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/customers/1', { method: 'DELETE' }));
+  });
+
+  it('shows an error and keeps the row when removing a customer fails', async () => {
+    unlock();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ customers: [{ id: 1, name: 'Ana', phone: '(67) 99999-0000' }], total: 1 }) })
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ClientesPage />);
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+    await waitFor(() => expect(screen.getByText('Não foi possível remover esse cliente.')).toBeInTheDocument());
+    expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 });

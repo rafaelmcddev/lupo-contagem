@@ -14,15 +14,39 @@ function unlock() {
 }
 
 describe('RecompensasPage', () => {
-  it('shows the PIN form when not unlocked', async () => {
+  it('shows the PIN form when not unlocked, without ever calling fetch', async () => {
     document.cookie = 'store_id=1; path=/';
-    // The page's load() effect fires on mount regardless of PinGate's lock
-    // state (it just never gets a sales list to show while locked) — an
-    // unstubbed fetch here would hit the real network with a relative URL,
-    // which Node's fetch rejects with "Invalid URL" outside a browser.
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ sales: [], total: 0 }) }));
+    // The sales-list content (and its load() effect) now only mounts once
+    // PinGate actually unlocks — a regression guard for the bug where
+    // load() fired on every mount regardless of lock state.
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     render(<RecompensasPage />);
     await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('loads the sales list immediately after successfully entering the PIN, with no reload needed', async () => {
+    document.cookie = 'store_id=1; path=/';
+    const fetchMock = vi.fn((url: string) => {
+      if (url === '/api/sale-pin/verify') {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      }
+      return Promise.resolve({
+        json: async () => ({
+          sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }],
+          total: 1,
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByPlaceholderText('PIN')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText('PIN'), { target: { value: '1234' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
   });
 
   it('lists sales, requesting 20 per page sorted by most recent by default', async () => {
@@ -118,5 +142,24 @@ describe('RecompensasPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/sales/1', { method: 'DELETE' }));
+  });
+
+  it('shows an error and keeps the row when removing a sale fails', async () => {
+    unlock();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
+      })
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover' }));
+    await waitFor(() => expect(screen.getByText('Não foi possível remover essa venda.')).toBeInTheDocument());
+    expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 });

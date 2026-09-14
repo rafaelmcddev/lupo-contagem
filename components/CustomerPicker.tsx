@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { hasEnoughDigits } from '@/lib/masks';
 
 interface Customer {
   id: number;
@@ -59,13 +60,31 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
     setShowCreateForm(true);
   }
 
+  // This component always renders inside the sale form's own <form> — a
+  // bare text input nested anywhere inside a <form> implicitly submits it
+  // on Enter, regardless of intervening non-form elements. Without this,
+  // pressing Enter here silently registers a sale instead of searching or
+  // creating a customer.
+  function interceptEnter(e: React.KeyboardEvent<HTMLElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  }
+
+  function handleCreateFormKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      createCustomer();
+    }
+  }
+
   async function createCustomer() {
     const trimmedName = newName.trim();
-    const trimmedPhone = newPhone.trim();
-    if (!trimmedName || !trimmedPhone) {
+    if (!trimmedName || !hasEnoughDigits(newPhone)) {
       setError('Preencha nome e telefone.');
       return;
     }
+    const trimmedPhone = newPhone.trim();
     const res = await fetch('/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,6 +106,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
           setQuery(e.target.value);
           setShowCreateForm(false);
         }}
+        onKeyDown={interceptEnter}
         placeholder="Buscar cliente por nome ou telefone..."
         aria-label="Buscar cliente"
         className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl placeholder:text-sm"
@@ -123,7 +143,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
         // and behaves fine in a client-only test environment that never
         // parses HTML. A single <div> with a type="button" trigger sidesteps
         // the whole class of bug regardless of where this component is used.
-        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4" onKeyDown={handleCreateFormKeyDown}>
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

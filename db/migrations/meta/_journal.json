@@ -43,6 +43,13 @@
       "when": 1789390687709,
       "tag": "0005_spicy_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789406361244,
+      "tag": "0006_fair_scrambler",
+      "breakpoints": true
     }
   ]
 }

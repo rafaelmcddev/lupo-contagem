@@ -30,4 +30,19 @@ describe('PhoneInput', () => {
     render(<PhoneInput initialValue="67999123456" onChangeValue={() => {}} ariaLabel="Telefone" />);
     expect(screen.getByLabelText('Telefone')).toHaveValue('(67) 99912-3456');
   });
+
+  it('deletes a digit when backspacing over mask punctuation, instead of getting stuck', () => {
+    const onChangeValue = vi.fn();
+    render(<PhoneInput onChangeValue={onChangeValue} ariaLabel="Telefone" />);
+    const input = screen.getByLabelText('Telefone');
+    expect(input).toHaveValue('(67)');
+
+    // Simulates backspacing over the closing ")" — the browser removes one
+    // character from the displayed value, but the underlying digits ("67")
+    // don't change on their own.
+    fireEvent.change(input, { target: { value: '(67' } });
+
+    expect(input).toHaveValue('(6');
+    expect(onChangeValue).toHaveBeenLastCalledWith('(6');
+  });
 });

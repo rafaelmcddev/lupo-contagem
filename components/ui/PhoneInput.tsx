@@ -37,7 +37,16 @@ export function PhoneInput({
   }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const nextDigits = e.target.value.replace(/\D/g, '').slice(0, 11);
+    const rawValue = e.target.value;
+    let nextDigits = rawValue.replace(/\D/g, '').slice(0, 11);
+    // Backspacing over mask punctuation only (e.g. the ")" in "(67)") leaves
+    // the underlying digits unchanged — re-deriving them from rawValue
+    // yields the exact same string, so the mask would redraw the same
+    // punctuation right back and backspace would look like it does nothing.
+    // Treat that case as a request to drop the last digit instead.
+    if (nextDigits === digits && rawValue.length < maskPhoneDigits(digits).length) {
+      nextDigits = nextDigits.slice(0, -1);
+    }
     setDigits(nextDigits);
     onChangeValue(maskPhoneDigits(nextDigits));
   }

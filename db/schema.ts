@@ -109,7 +109,9 @@ export const sales = pgTable(
   {
     id: serial('id').primaryKey(),
     storeId: integer('store_id').notNull().references(() => stores.id),
-    customerId: integer('customer_id').notNull().references(() => customers.id),
+    customerId: integer('customer_id')
+      .notNull()
+      .references(() => customers.id, { onDelete: 'cascade' }),
     saleDate: date('sale_date', { mode: 'string' }).notNull(),
     valueCents: integer('value_cents').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

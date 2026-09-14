@@ -69,4 +69,22 @@ describe('CustomerPicker', () => {
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ id: 2, name: 'Bia', phone: '(67) 98888-0000' }));
   });
+
+  it('creates the customer when Enter is pressed inside the inline create form, instead of bubbling up as a form submit', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => ({ customers: [], total: 0 }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ customer: { id: 2, name: 'Bia', phone: '(67) 98888-0000' } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const onSelect = vi.fn();
+    render(<CustomerPicker onSelect={onSelect} />);
+
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Bia' } });
+    await waitFor(() => expect(screen.getByText('Cliente não encontrado.')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Cadastrar novo cliente'));
+    fireEvent.change(screen.getByPlaceholderText('Telefone'), { target: { value: '67988880000' } });
+    fireEvent.keyDown(screen.getByPlaceholderText('Telefone'), { key: 'Enter' });
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ id: 2, name: 'Bia', phone: '(67) 98888-0000' }));
+  });
 });

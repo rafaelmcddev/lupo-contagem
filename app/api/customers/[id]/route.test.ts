@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { customers } from '@/db/schema';
+import { customers, sales } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { unlockedRequest } from '@/tests/testSalePin';
@@ -66,6 +67,17 @@ describe('/api/customers/:id', () => {
     expect(res.status).toBe(200);
     const remaining = await db.select().from(customers);
     expect(remaining).toHaveLength(0);
+  });
+
+  it('removes a customer along with their sales', async () => {
+    const customer = await createCustomer();
+    await db.insert(sales).values({ storeId, customerId: customer.id, saleDate: '2026-09-14', valueCents: 1000 });
+
+    const res = await DELETE(deleteReq(), { params: { id: String(customer.id) } });
+
+    expect(res.status).toBe(200);
+    const remainingSales = await db.select().from(sales).where(eq(sales.customerId, customer.id));
+    expect(remainingSales).toHaveLength(0);
   });
 
   it('returns 404 when removing a customer that belongs to a different store, leaving it intact', async () => {
