@@ -1,0 +1,63 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
+import { customers, sales, whatsappSends } from '@/db/schema';
+import { todayIso } from '@/lib/dates';
+import { resetDb } from '@/tests/resetDb';
+import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
+import { POST } from './route';
+
+let storeId: number;
+let saleId: number;
+
+beforeEach(async () => {
+  await resetDb();
+  storeId = await getTestStoreId();
+  const [customer] = await db.insert(customers).values({ storeId, name: 'Ana', phone: '99999-0000' }).returning();
+  const [sale] = await db
+    .insert(sales)
+    .values({ storeId, customerId: customer.id, saleDate: todayIso(), valueCents: 10000 })
+    .returning();
+  saleId = sale.id;
+});
+
+function postReq() {
+  return unlockedRequest('http://localhost', storeId, { method: 'POST' });
+}
+
+describe('POST /api/sales/:id/send-reminder', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST' }), { params: { id: String(saleId) } });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns a ready-to-open WhatsApp Web URL and logs it as a manual reminder', async () => {
+    const res = await POST(postReq(), { params: { id: String(saleId) } });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    // '99999-0000' strips to the 9 digits '999990000', then gets the '55'
+    // country-code prefix from buildWhatsAppWebUrl -> '55999990000'.
+    expect(data.whatsappUrl).toContain('https://web.whatsapp.com/send?phone=55999990000&text=');
+
+    const [row] = await db.select().from(whatsappSends);
+    expect(row).toMatchObject({ saleId, type: 'reminder', status: 'opened', trigger: 'manual' });
+  });
+
+  it('works even when the sale is well within its 30-day window (not gated by day 25)', async () => {
+    const res = await POST(postReq(), { params: { id: String(saleId) } }); // saleDate is today, day 0
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 404 for a sale in a different store', async () => {
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    const res = await POST(unlockedRequest('http://localhost', otherStoreId, { method: 'POST' }), {
+      params: { id: String(saleId) },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for a non-integer id instead of throwing', async () => {
+    const res = await POST(postReq(), { params: { id: 'abc' } });
+    expect(res.status).toBe(404);
+  });
+});
