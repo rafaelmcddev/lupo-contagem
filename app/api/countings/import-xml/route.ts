@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { countings, invoiceItems, skus } from '@/db/schema';
 import { getPrefixLength } from '@/lib/getPrefixLength';
 import { getRequireSku } from '@/lib/getRequireSku';
 import { InvalidNfeXmlError, parseNfeXml } from '@/lib/parseNfeXml';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -44,12 +46,15 @@ export async function POST(req: Request) {
   let productsCreated = 0;
   let productsUpdated = 0;
   for (const item of parsed.items) {
-    const existing = await db.select().from(skus).where(eq(skus.barcode, item.barcode)).limit(1);
+    const existing = await db.select().from(skus).where(and(eq(skus.storeId, storeId), eq(skus.barcode, item.barcode))).limit(1);
     if (existing[0]) {
-      await db.update(skus).set({ sku: item.sku, name: item.name }).where(eq(skus.barcode, item.barcode));
+      await db
+        .update(skus)
+        .set({ sku: item.sku, name: item.name })
+        .where(and(eq(skus.storeId, storeId), eq(skus.barcode, item.barcode)));
       productsUpdated++;
     } else {
-      await db.insert(skus).values({ barcode: item.barcode, sku: item.sku, name: item.name });
+      await db.insert(skus).values({ storeId, barcode: item.barcode, sku: item.sku, name: item.name });
       productsCreated++;
     }
   }
@@ -57,6 +62,7 @@ export async function POST(req: Request) {
   const [counting] = await db
     .insert(countings)
     .values({
+      storeId,
       name,
       prefixLengthUsed: prefixLength,
       requireSkuUsed: requireSku,

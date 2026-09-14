@@ -4,6 +4,7 @@ import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 import { getPrefixLength } from '@/lib/getPrefixLength';
 import { getRequireSku } from '@/lib/getRequireSku';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,7 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
 export async function GET(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   const url = new URL(req.url);
   const status = url.searchParams.get('status');
   const q = (url.searchParams.get('q') ?? '').trim();
@@ -20,10 +22,10 @@ export async function GET(req: Request) {
     Math.max(1, Number(url.searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE)) || DEFAULT_PAGE_SIZE),
   );
 
-  const conditions = [];
+  const conditions = [eq(countings.storeId, storeId)];
   if (status === 'active' || status === 'finished') conditions.push(eq(countings.status, status));
   if (q) conditions.push(ilike(countings.name, `%${q}%`));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
 
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(countings).where(where);
   const rows = await db
@@ -38,6 +40,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
   const requireSku = await getRequireSku(db);
   const [row] = await db
     .insert(countings)
-    .values({ name, prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
+    .values({ storeId, name, prefixLengthUsed: prefixLength, requireSkuUsed: requireSku, status: 'active' })
     .returning();
   return NextResponse.json({ counting: row }, { status: 201 });
 }

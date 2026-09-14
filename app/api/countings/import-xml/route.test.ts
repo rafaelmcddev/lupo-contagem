@@ -1,10 +1,21 @@
+import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
 import { countings, invoiceItems, skus } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
+import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { POST } from './route';
 
-beforeEach(resetDb);
+let storeId: number;
+
+beforeEach(async () => {
+  await resetDb();
+  storeId = await getTestStoreId();
+});
+
+function postReq(body: unknown) {
+  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
+}
 
 function sampleXml(nNF = '1001') {
   return `<?xml version="1.0"?>
@@ -36,7 +47,7 @@ function sampleXml(nNF = '1001') {
 
 describe('/api/countings/import-xml', () => {
   it('creates an xml-sourced counting with invoice items and updates the products catalog', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: sampleXml() }) }));
+    const res = await POST(postReq({ xml: sampleXml() }));
     expect(res.status).toBe(201);
     const data = await res.json();
 
@@ -60,50 +71,58 @@ describe('/api/countings/import-xml', () => {
   });
 
   it('uses a default name derived from the invoice number and supplier when none is given', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: sampleXml('2002') }) }));
+    const res = await POST(postReq({ xml: sampleXml('2002') }));
     const data = await res.json();
     expect(data.counting.name).toBe('NF 2002 — Fornecedor Teste');
   });
 
   it('uses a custom name when provided', async () => {
-    const res = await POST(
-      new Request('http://localhost', {
-        method: 'POST',
-        body: JSON.stringify({ xml: sampleXml(), name: 'Entrega de segunda' }),
-      }),
-    );
+    const res = await POST(postReq({ xml: sampleXml(), name: 'Entrega de segunda' }));
     const data = await res.json();
     expect(data.counting.name).toBe('Entrega de segunda');
   });
 
   it('updates an existing product instead of duplicating it', async () => {
-    await db.insert(skus).values({ barcode: '7891234000011', sku: 'ANTIGO', name: 'Nome antigo' });
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: sampleXml() }) }));
+    await db.insert(skus).values({ storeId, barcode: '7891234000011', sku: 'ANTIGO', name: 'Nome antigo' });
+    const res = await POST(postReq({ xml: sampleXml() }));
     const data = await res.json();
     expect(data.productsCreated).toBe(1);
     expect(data.productsUpdated).toBe(1);
   });
 
   it('returns 400 invalid_xml for XML that is not an NF-e', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: '<a/>' }) }));
+    const res = await POST(postReq({ xml: '<a/>' }));
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('invalid_xml');
   });
 
   it('returns 400 for an empty body', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: '' }) }));
+    const res = await POST(postReq({ xml: '' }));
     expect(res.status).toBe(400);
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(new Request('http://localhost', { method: 'POST', body: '{not json' }));
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 
   it('does not create a counting at all when the request is invalid', async () => {
-    await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ xml: '<a/>' }) }));
+    await POST(postReq({ xml: '<a/>' }));
     const rows = await db.select().from(countings);
     expect(rows).toHaveLength(0);
+  });
+
+  it('does not update a product registered under the same barcode in a different store', async () => {
+    const otherStoreId = await getTestStoreId('campo-grande-ms');
+    await db.insert(skus).values({ storeId: otherStoreId, barcode: '7891234000011', sku: 'ANTIGO', name: 'Outra loja' });
+
+    await POST(postReq({ xml: sampleXml() }));
+
+    const otherStoreRow = await db.select().from(skus).where(and(eq(skus.storeId, otherStoreId), eq(skus.barcode, '7891234000011')));
+    expect(otherStoreRow[0]).toMatchObject({ sku: 'ANTIGO', name: 'Outra loja' });
+
+    const currentStoreRow = await db.select().from(skus).where(and(eq(skus.storeId, storeId), eq(skus.barcode, '7891234000011')));
+    expect(currentStoreRow[0]).toMatchObject({ sku: 'SKU-001', name: 'Produto A' });
   });
 });

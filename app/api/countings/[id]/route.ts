@@ -1,31 +1,37 @@
 import { NextResponse } from 'next/server';
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { boxes, countings, groups, invoiceItems, scans } from '@/db/schema';
 import { resolveGroupName } from '@/lib/groupMatch';
+import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
   if (!Number.isInteger(countingId)) {
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
-  const countingRows = await db.select().from(countings).where(eq(countings.id, countingId)).limit(1);
+  const storeId = getStoreIdFromRequest(req);
+  const countingRows = await db
+    .select()
+    .from(countings)
+    .where(and(eq(countings.id, countingId), eq(countings.storeId, storeId)))
+    .limit(1);
   const counting = countingRows[0];
   if (!counting) {
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
 
   const boxRows = await db.select().from(boxes).where(eq(boxes.countingId, countingId)).orderBy(asc(boxes.boxNumber));
-  const allGroups = await db.select().from(groups);
+  const allGroups = await db.select().from(groups).where(eq(groups.storeId, counting.storeId));
 
   const boxesWithTotals = await Promise.all(
     boxRows.map(async (box) => {
       const skuResult = await db.execute(sql`
         SELECT sc.barcode AS barcode, s.sku AS sku, s.name AS name, COUNT(*)::int AS total
         FROM scans sc
-        LEFT JOIN skus s ON s.barcode = sc.barcode
+        LEFT JOIN skus s ON s.barcode = sc.barcode AND s.store_id = ${counting.storeId}
         WHERE sc.box_id = ${box.id}
         GROUP BY sc.barcode, s.sku, s.name
         ORDER BY s.name, sc.barcode
@@ -83,13 +89,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ counting, boxes: boxesWithTotals, grandTotal, invoiceCheck });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const countingId = Number(params.id);
   if (!Number.isInteger(countingId)) {
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
+  const storeId = getStoreIdFromRequest(req);
 
-  const countingRows = await db.select().from(countings).where(eq(countings.id, countingId)).limit(1);
+  const countingRows = await db
+    .select()
+    .from(countings)
+    .where(and(eq(countings.id, countingId), eq(countings.storeId, storeId)))
+    .limit(1);
   if (!countingRows[0]) {
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
