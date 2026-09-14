@@ -59,8 +59,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
     setShowCreateForm(true);
   }
 
-  async function createCustomer(e: React.FormEvent) {
-    e.preventDefault();
+  async function createCustomer() {
     const trimmedName = newName.trim();
     const trimmedPhone = newPhone.trim();
     if (!trimmedName || !trimmedPhone) {
@@ -116,7 +115,15 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
         </div>
       )}
       {showCreateForm && (
-        <form onSubmit={createCustomer} className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
+        // A plain <div>, not a <form>: this component is always used nested
+        // inside the sale-registration page's own <form>, and HTML doesn't
+        // allow a <form> inside a <form> — the browser's HTML parser silently
+        // fixes up the markup on the server-rendered page (breaking the
+        // submit button in the process), even though a nested <form> renders
+        // and behaves fine in a client-only test environment that never
+        // parses HTML. A single <div> with a type="button" trigger sidesteps
+        // the whole class of bug regardless of where this component is used.
+        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -128,9 +135,11 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
             placeholder="Telefone"
             className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-lg placeholder:text-sm"
           />
-          <Button type="submit">Cadastrar e selecionar</Button>
+          <Button type="button" onClick={createCustomer}>
+            Cadastrar e selecionar
+          </Button>
           {error && <p className="text-sm text-red-600">{error}</p>}
-        </form>
+        </div>
       )}
     </div>
   );

@@ -39,11 +39,16 @@ describe('CustomerPicker', () => {
 
   it('shows a create-customer form pre-filled with the query when the search finds nothing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ customers: [], total: 0 }) }));
-    render(<CustomerPicker onSelect={() => {}} />);
+    const { container } = render(<CustomerPicker onSelect={() => {}} />);
     fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Bia' } });
     await waitFor(() => expect(screen.getByText('Cliente não encontrado.')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Cadastrar novo cliente'));
     expect(screen.getByPlaceholderText('Nome do cliente')).toHaveValue('Bia');
+    // Regression guard: this component is always rendered inside the sale
+    // form's own <form> — it must never render a <form> of its own (HTML
+    // forbids nesting them), or the create button breaks on the real,
+    // server-rendered page even though it passes fine in a client-only test.
+    expect(container.querySelector('form')).toBeNull();
   });
 
   it('creates a customer, masking the phone as it is typed, and calls onSelect with the created customer', async () => {

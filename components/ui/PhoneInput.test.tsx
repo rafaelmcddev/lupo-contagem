@@ -5,7 +5,7 @@ import { PhoneInput } from './PhoneInput';
 describe('PhoneInput', () => {
   it('pre-fills the local DDD (67) when no initial value is given, to speed up typing', () => {
     render(<PhoneInput onChangeValue={() => {}} ariaLabel="Telefone" />);
-    expect(screen.getByLabelText('Telefone')).toHaveValue('(67');
+    expect(screen.getByLabelText('Telefone')).toHaveValue('(67)');
   });
 
   it('allows replacing the pre-filled DDD entirely', () => {

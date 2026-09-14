@@ -8,7 +8,7 @@ describe('maskPhoneDigits', () => {
 
   it('formats progressively as digits are typed', () => {
     expect(maskPhoneDigits('6')).toBe('(6');
-    expect(maskPhoneDigits('67')).toBe('(67');
+    expect(maskPhoneDigits('67')).toBe('(67)');
     expect(maskPhoneDigits('679')).toBe('(67) 9');
     expect(maskPhoneDigits('67999')).toBe('(67) 999');
     expect(maskPhoneDigits('6799912')).toBe('(67) 99912');
