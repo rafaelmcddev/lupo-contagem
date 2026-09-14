@@ -34,9 +34,70 @@ As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir
 
 `/recompensas` registra vendas (cliente, data, valor) pro programa de cashback — sem produto, já que a venda em si continua sendo lançada no sistema de vendas da loja. A tela busca clientes já cadastrados (com opção de cadastrar um novo na hora, telefone com máscara `(00) 00000-0000` e DDD local pré-preenchido) e lista as vendas já lançadas naquela loja, 20 por página, ordenadas por compra mais recente (com opção de ordenar por nome do cliente). `/recompensas/clientes` gerencia o cadastro de clientes separadamente.
 
-Ambas as telas ficam atrás de um PIN por loja — não é controle de usuário (não sabe quem lançou o quê), só uma trava simples contra acesso por pessoas de fora. O PIN de cada loja é uma variável de ambiente, nome derivado do slug: `SALE_PIN_COXIM_MS`, `SALE_PIN_CAMPO_GRANDE_MS`. Digitar o PIN uma vez destrava o dispositivo pra aquela loja (cookie perene) até trocar de loja ou limpar os cookies.
+### PIN de acesso — o que é e onde ver/trocar
 
-A recompensa (5% do valor, válida por 30 dias) é calculada na hora, nunca guardada — veja `lib/rewards.ts`. O aviso ao cliente por WhatsApp funciona em dois modos, trocados automaticamente pela presença das variáveis de ambiente `META_WHATSAPP_TOKEN`/`META_WHATSAPP_PHONE_NUMBER_ID`/`META_WHATSAPP_TEMPLATE_NAME`: sem elas, `/recompensas` mostra uma fila de mensagens pendentes que abrem o WhatsApp Web (`web.whatsapp.com`) já preenchido, usando a sessão logada do navegador — cada uma precisa de um clique manual em "Enviar" dentro do WhatsApp Web, já que nenhum site consegue controlar outro por questão de segurança do navegador. Com as variáveis configuradas, o aviso de compra sai na hora e o lembrete roda sozinho todo dia via Vercel Cron (`vercel.json`, protegido por `CRON_SECRET`) — mas a Meta exige que esse texto seja pré-cadastrado e aprovado como "template" antes, o que só o dono da conta consegue fazer. O relatório de recompensas a vencer e a limpeza de vendas já expiradas (o plano gratuito da Neon tem limite de tamanho) ficam em `/recompensas/relatorio`.
+Ambas as telas ficam atrás de um PIN por loja — **não é controle de usuário** (não sabe quem lançou o quê), só uma trava simples contra acesso por pessoas de fora. O PIN de cada loja é uma variável de ambiente, nome derivado do slug: `SALE_PIN_COXIM_MS`, `SALE_PIN_CAMPO_GRANDE_MS`. Digitar o PIN uma vez destrava o dispositivo pra aquela loja (cookie perene) até trocar de loja ou limpar os cookies.
+
+Pra ver ou trocar o PIN de produção: painel da Vercel → o projeto → **Settings → Environment Variables** → procure `SALE_PIN_COXIM_MS`/`SALE_PIN_CAMPO_GRANDE_MS`. A Vercel mostra o valor já salvo ali (ou permite revelar). Se trocar o valor, é preciso fazer um novo deploy pra pegar — env vars não atualizam um deploy já publicado sozinhas.
+
+### Cálculo do cashback
+
+A recompensa é **5% do valor da venda**, válida por **30 dias** a partir da data da compra — calculada na hora, em toda tela que precisa dela (o valor nunca fica guardado numa coluna própria, pra nunca dessincronizar). A lógica inteira vive em `lib/rewards.ts` (`calculateRewardCents`, `calculateExpiresAt`) — é o único lugar que sabe esses dois números; se o percentual ou o prazo mudar um dia, é só ali.
+
+Cada venda tem um campo "cashback usado" (booleano, `sales.cashback_used`) — o botão "Marcar como usado"/"Desmarcar" em `/recompensas` deixa a funcionária corrigir na hora se clicar errado. Não afeta o cálculo nem o vencimento, só o status pro relatório.
+
+### Avisos por WhatsApp: como funciona hoje, e como ligar o modo automático
+
+O aviso ao cliente (mensagem de "você ganhou cashback") funciona em **dois modos**, trocados **automaticamente** pela presença de três variáveis de ambiente — `META_WHATSAPP_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID` e `META_WHATSAPP_TEMPLATE_NAME` — sem precisar mexer em nenhuma linha de código pra trocar de um modo pro outro:
+
+**Modo fila (é o modo atual, enquanto as 3 variáveis não existem):**
+
+Como nenhum site consegue controlar o que acontece dentro de outro (proteção de segurança de todo navegador, não uma limitação deste projeto), não tem como o sistema mandar a mensagem sozinho sem a API oficial. Em vez disso, `/recompensas` mostra uma faixa "N mensagens pendentes" sempre que existir uma confirmação de compra ou um lembrete (5 dias antes de vencer os 30) ainda não tratado. Cada clique em **"Processar próxima"** abre uma aba nova do WhatsApp Web (`web.whatsapp.com`) já com o número e o texto preenchidos, usando a sessão que já estiver logada no navegador — a funcionária só confere e clica em **Enviar** dentro do próprio WhatsApp. O botão **"Enviar lembrete"** (na linha de cada venda) faz a mesma coisa a qualquer momento, sem depender dos 5 dias.
+
+**Modo automático (liga sozinho assim que as 3 variáveis existirem):**
+
+- A confirmação de compra sai na hora, ao registrar a venda.
+- O lembrete roda sozinho, uma vez por dia, via **Vercel Cron** (configurado em `vercel.json`, rota `GET /api/cron/reward-reminders`, protegida por uma quarta variável, `CRON_SECRET`, pra ninguém mais conseguir chamar essa rota).
+- A fila manual desaparece sozinha (deixa de mostrar qualquer coisa, já que os envios acontecem em segundo plano).
+
+**Passo a passo pra ativar o modo automático, quando for a hora:**
+
+1. Criar/acessar uma conta no [Meta for Developers](https://developers.facebook.com/) e configurar o **WhatsApp Business Platform** pra essa conta.
+2. Verificar um número de telefone comercial (o número que vai aparecer pro cliente como remetente da mensagem).
+3. Cadastrar o texto abaixo como **template de mensagem** no painel da Meta, e esperar a aprovação (a Meta exige isso pra qualquer mensagem que a loja inicia sem o cliente ter escrito antes — pode levar de horas a alguns dias):
+
+   ```
+   Olá, {{1}}! 👋
+
+   Agradecemos por escolher a loja Up! 💙
+
+   Temos uma boa notícia para você! 🎉
+
+   Sua compra realizada no dia {{2}} gerou {{3}} de crédito para desconto em sua próxima compra.
+
+   📅 Você pode utilizar esse valor até: {{4}}
+
+   É só visitar nossa loja física e aproveitar o seu crédito para pagar menos na sua próxima compra! 😊
+
+   Após essa data, o crédito não poderá mais ser utilizado.
+
+   Esperamos você! 💙
+   ```
+
+   (`{{1}}` = nome do cliente, `{{2}}` = data da compra, `{{3}}` = valor do cashback, `{{4}}` = data limite — nessa ordem; é o mesmo texto usado no modo fila, só que lá os `{{N}}` já vêm substituídos direto no link do WhatsApp Web.)
+4. Depois de aprovado, pegar na Meta: o **token de acesso** permanente, o **Phone Number ID**, e o **nome exato do template** que você cadastrou.
+5. No painel da Vercel → o projeto → **Settings → Environment Variables**, adicionar:
+   - `META_WHATSAPP_TOKEN`
+   - `META_WHATSAPP_PHONE_NUMBER_ID`
+   - `META_WHATSAPP_TEMPLATE_NAME`
+   - `CRON_SECRET` (qualquer texto longo/aleatório — é só uma senha interna pra rota do cron, não vem da Meta)
+6. Fazer um novo deploy (env vars só entram em vigor no próximo deploy publicado).
+
+Todo o código do envio (`lib/whatsapp.ts`, incluindo a chamada à API da Meta) já está pronto e testado esperando essas variáveis — não precisa programar nada, só cadastrar a conta e configurar.
+
+### Relatório de recompensas a vencer e limpeza de vendas antigas
+
+`/recompensas/relatorio` lista as vendas cujo cashback vence nos próximos 10 dias (padrão — dá pra abrir o intervalo de data), com filtro de "cashback já utilizado". Nessa mesma tela fica o botão **"Limpar vendas com cashback expirado"** — apaga permanentemente (não é soft-delete) as vendas com mais de 30 dias, já que o plano gratuito da Neon tem limite de tamanho de banco; mostra quantas vendas serão apagadas antes de confirmar, e guarda um histórico (só data/hora + quantidade) de cada limpeza já feita, embaixo do botão.
 
 ## Deploy
 
