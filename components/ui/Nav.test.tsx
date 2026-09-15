@@ -14,13 +14,13 @@ describe('Nav', () => {
     expect(screen.getByRole('link', { name: 'Contagens' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Produtos' })).toHaveAttribute('href', '/products');
     expect(screen.getByRole('link', { name: 'Recompensas' })).toHaveAttribute('href', '/recompensas');
+    expect(screen.getByRole('link', { name: 'Configurações' })).toHaveAttribute('href', '/settings');
   });
 
-  it('does not render Histórico, Grupos, or Configurações — moved out of the main nav', () => {
+  it('does not render Histórico or Grupos — moved out of the main nav', () => {
     render(<Nav />);
     expect(screen.queryByRole('link', { name: 'Histórico' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Grupos' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Configurações' })).not.toBeInTheDocument();
   });
 
   it('marks the current section as active', () => {

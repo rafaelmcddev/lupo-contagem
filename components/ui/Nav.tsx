@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/', label: 'Contagens' },
   { href: '/products', label: 'Produtos' },
   { href: '/recompensas', label: 'Recompensas' },
+  { href: '/settings', label: 'Configurações' },
 ];
 
 export function Nav() {
