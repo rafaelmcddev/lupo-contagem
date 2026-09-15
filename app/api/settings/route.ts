@@ -4,7 +4,7 @@ import { db } from '@/db/client';
 import { settings, stores } from '@/db/schema';
 import { PREFIX_LENGTH_KEY, getPrefixLength } from '@/lib/getPrefixLength';
 import { REQUIRE_SKU_KEY, getRequireSku } from '@/lib/getRequireSku';
-import { isMasterPasswordUnlocked } from '@/lib/masterPassword';
+import { isMasterPasswordCorrect } from '@/lib/masterPassword';
 import { getStoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
 import { isWhatsAppApiConfigured } from '@/lib/whatsapp';
@@ -36,15 +36,17 @@ export async function GET(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  if (!isMasterPasswordUnlocked(req)) {
-    return NextResponse.json({ error: 'master_password_required' }, { status: 401 });
-  }
   const storeId = getStoreIdFromRequest(req);
   let body: any;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
+  // The master password is never cached (see lib/masterPassword.ts) — it's
+  // sent fresh with every save instead of being checked via a cookie.
+  if (!isMasterPasswordCorrect(String(body.masterPassword ?? ''))) {
+    return NextResponse.json({ error: 'master_password_required' }, { status: 401 });
   }
   const prefixLength = Number(body.prefixLength);
   if (!Number.isInteger(prefixLength) || prefixLength < 1 || prefixLength > 20) {

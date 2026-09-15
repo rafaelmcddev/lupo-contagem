@@ -44,7 +44,7 @@ Pra ver ou trocar o PIN de produção: painel da Vercel → o projeto → **Sett
 
 ### Senha master — protege as Configurações
 
-`/settings` (percentuais de cashback, prazo, limite de uso, texto da mensagem do WhatsApp, dígitos do grupo, exigir SKU) fica atrás de uma **senha separada do PIN de loja** — o PIN de loja destrava o dia a dia (vendas, contagens); a senha master é quem pode mudar as regras do negócio, então só quem administra deve ter ela. É uma única senha global (não por loja), variável de ambiente `SETTINGS_MASTER_PASSWORD`, com cookie próprio (`settings_master_ok`) que não se mistura com o PIN de loja.
+`/settings` (percentuais de cashback, prazo, limite de uso, texto da mensagem do WhatsApp) fica atrás de uma **senha separada do PIN de loja** — o PIN de loja destrava o dia a dia (vendas, contagens) e fica salvo no navegador por um ano; a senha master é quem pode mudar as regras do negócio, então **nunca fica salva** (sem cookie, sem cache) — é pedida toda vez que alguém entra em Configurações, mesmo no mesmo computador/navegador que já tem o PIN de loja destravado, já que o mesmo computador costuma ser usado tanto pelo dono quanto pela equipe. É uma única senha global (não por loja), variável de ambiente `SETTINGS_MASTER_PASSWORD`.
 
 ### Cálculo do cashback
 
@@ -64,7 +64,9 @@ O aviso ao cliente (mensagem de "você ganhou cashback") funciona em **dois modo
 
 **Modo fila (é o modo atual, enquanto as 3 variáveis não existem):**
 
-Como nenhum site consegue controlar o que acontece dentro de outro (proteção de segurança de todo navegador, não uma limitação deste projeto), não tem como o sistema mandar a mensagem sozinho sem a API oficial. Em vez disso, `/recompensas` mostra uma faixa "N mensagens pendentes" sempre que existir uma confirmação de compra ou um lembrete ainda não tratado — **essa faixa só aparece depois que o modo automático estiver ligado** (mesmas 3 variáveis abaixo); enquanto elas não existirem, ela fica sempre escondida, pra não incomodar no dia a dia. Cada clique em **"Processar próxima"** abre uma aba nova do WhatsApp (link `wa.me`, que abre o aplicativo no celular e o WhatsApp Web no computador, automaticamente) já com o número e o texto preenchidos, usando a sessão que já estiver logada — a funcionária só confere e clica em **Enviar** dentro do próprio WhatsApp. O botão **"Enviar lembrete"** (na linha de cada venda) faz a mesma coisa a qualquer momento, independente da faixa.
+Como nenhum site consegue controlar o que acontece dentro de outro (proteção de segurança de todo navegador, não uma limitação deste projeto), não tem como o sistema mandar a mensagem sozinho sem a API oficial. Em vez disso, `/recompensas` mostra uma faixa "N mensagens pendentes" sempre que existir uma confirmação de compra ou um lembrete ainda não tratado — **essa faixa só aparece depois que o modo automático estiver ligado** (mesmas 3 variáveis abaixo); enquanto elas não existirem, ela fica sempre escondida, pra não incomodar no dia a dia. Cada clique em **"Processar próxima"** abre o WhatsApp já com o número e o texto preenchidos, usando a sessão que já estiver logada — a funcionária só confere e clica em **Enviar** dentro do próprio WhatsApp. O botão **"Enviar lembrete"** (na linha de cada venda) faz a mesma coisa a qualquer momento, independente da faixa.
+
+O link muda conforme o dispositivo (calculado no navegador, não no servidor): no celular, abre o aplicativo diretamente (`whatsapp://send?...`); no computador, abre o WhatsApp Web (`web.whatsapp.com/send?...`). Não usamos o link universal `wa.me`/`api.whatsapp.com` — em produção ele corrompeu os emojis do texto (viravam "�"), então essas duas variantes específicas substituem ele (`lib/whatsapp.ts`, `buildWhatsAppOpenUrl`).
 
 **Modo automático (liga sozinho assim que as 3 variáveis existirem):**
 

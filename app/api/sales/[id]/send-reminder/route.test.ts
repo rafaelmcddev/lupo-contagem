@@ -32,13 +32,12 @@ describe('POST /api/sales/:id/send-reminder', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns a ready-to-open WhatsApp Web URL and logs it as a manual reminder', async () => {
+  it('returns the phone and ready-to-send message text — the URL itself is built client-side (device-dependent)', async () => {
     const res = await POST(postReq(), { params: { id: String(saleId) } });
     expect(res.status).toBe(200);
     const data = await res.json();
-    // '99999-0000' strips to the 9 digits '999990000', then gets the '55'
-    // country-code prefix from buildWhatsAppUrl -> '55999990000'.
-    expect(data.whatsappUrl).toContain('https://wa.me/55999990000?text=');
+    expect(data.phone).toBe('99999-0000');
+    expect(data.message).toContain('Ana');
 
     const [row] = await db.select().from(whatsappSends);
     expect(row).toMatchObject({ saleId, type: 'reminder', status: 'opened', trigger: 'manual' });
@@ -70,8 +69,7 @@ describe('POST /api/sales/:id/send-reminder', () => {
 
     const res = await POST(postReq(), { params: { id: String(saleId) } });
     const data = await res.json();
-    const text = decodeURIComponent(data.whatsappUrl.split('text=')[1]);
-    expect(text).toContain('Oi Ana,');
-    expect(text).toContain('R$ 10,00 de Coxim-MS vale até');
+    expect(data.message).toContain('Oi Ana,');
+    expect(data.message).toContain('R$ 10,00 de Coxim-MS vale até');
   });
 });

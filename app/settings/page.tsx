@@ -7,17 +7,13 @@ import { PageHeading } from '@/components/ui/PageHeading';
 import { CheckIcon } from '@/components/ui/icons';
 
 export default function SettingsPage() {
-  return (
-    <MasterPasswordGate>
-      <SettingsContent />
-    </MasterPasswordGate>
-  );
+  return <MasterPasswordGate>{(masterPassword) => <SettingsContent masterPassword={masterPassword} />}</MasterPasswordGate>;
 }
 
 // Split out so this content — and its data-loading effect — only mounts
 // once MasterPasswordGate has actually unlocked (same reasoning as
 // RecompensasContent in app/recompensas/page.tsx).
-function SettingsContent() {
+function SettingsContent({ masterPassword }: { masterPassword: string }) {
   const [prefixLength, setPrefixLength] = useState<number | ''>('');
   const [requireSku, setRequireSku] = useState(true);
   const [cashbackPercent, setCashbackPercent] = useState<number | ''>('');
@@ -45,6 +41,7 @@ function SettingsContent() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        masterPassword,
         prefixLength: Number(prefixLength),
         requireSku,
         cashbackPercent: Number(cashbackPercent),

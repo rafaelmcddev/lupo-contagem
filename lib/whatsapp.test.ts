@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_WHATSAPP_MESSAGE_TEMPLATE, buildRewardMessage, buildWhatsAppUrl, isWhatsAppApiConfigured, sendViaMetaApi } from './whatsapp';
+import { DEFAULT_WHATSAPP_MESSAGE_TEMPLATE, buildRewardMessage, buildWhatsAppOpenUrl, isMobileUserAgent, isWhatsAppApiConfigured, sendViaMetaApi } from './whatsapp';
+
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15';
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36';
+const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -78,16 +82,31 @@ describe('buildRewardMessage', () => {
   });
 });
 
-describe('buildWhatsAppUrl', () => {
-  it('strips formatting from the phone, prefixes the country code, and encodes the text', () => {
-    const url = buildWhatsAppUrl('(67) 99999-0000', 'Olá!');
-    // wa.me opens the native app on mobile and falls back to WhatsApp Web on desktop.
-    expect(url).toBe('https://wa.me/5567999990000?text=Ol%C3%A1!');
+describe('isMobileUserAgent', () => {
+  it('recognizes iPhone and Android user agents as mobile', () => {
+    expect(isMobileUserAgent(IPHONE_UA)).toBe(true);
+    expect(isMobileUserAgent(ANDROID_UA)).toBe(true);
+  });
+
+  it('does not treat a desktop user agent as mobile', () => {
+    expect(isMobileUserAgent(DESKTOP_UA)).toBe(false);
+  });
+});
+
+describe('buildWhatsAppOpenUrl', () => {
+  it('on desktop, uses web.whatsapp.com/send (wa.me was found to garble emoji in production)', () => {
+    const url = buildWhatsAppOpenUrl('(67) 99999-0000', 'Olá! 👋', DESKTOP_UA);
+    expect(url).toBe('https://web.whatsapp.com/send?phone=5567999990000&text=Ol%C3%A1!%20%F0%9F%91%8B');
+  });
+
+  it('on mobile, opens the app directly via the whatsapp:// scheme instead of the web redirect', () => {
+    const url = buildWhatsAppOpenUrl('(67) 99999-0000', 'Olá!', IPHONE_UA);
+    expect(url).toBe('whatsapp://send?phone=5567999990000&text=Ol%C3%A1!');
   });
 
   it('does not double the country code if already present', () => {
-    const url = buildWhatsAppUrl('55 67 99999-0000', 'oi');
-    expect(url).toContain('wa.me/5567999990000');
+    const url = buildWhatsAppOpenUrl('55 67 99999-0000', 'oi', DESKTOP_UA);
+    expect(url).toContain('phone=5567999990000');
   });
 });
 

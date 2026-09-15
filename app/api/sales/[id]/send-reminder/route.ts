@@ -8,7 +8,7 @@ import { formatDateBR } from '@/lib/dates';
 import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
-import { buildRewardMessage, buildWhatsAppUrl } from '@/lib/whatsapp';
+import { buildRewardMessage } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,8 +53,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     maxUsagePercentText: `${maxUsagePercent}%`,
     minPurchaseBRL: formatCentsAsBRL(minPurchaseCents),
   });
-  const whatsappUrl = buildWhatsAppUrl(sale.customerPhone, message);
-
   await db.insert(whatsappSends).values({
     storeId,
     saleId: sale.saleId,
@@ -65,5 +63,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     trigger: 'manual',
   });
 
-  return NextResponse.json({ whatsappUrl });
+  // The URL depends on the requesting device (app vs web.whatsapp.com), so
+  // it's built client-side — this just hands back the phone and text.
+  return NextResponse.json({ phone: sale.customerPhone, message });
 }

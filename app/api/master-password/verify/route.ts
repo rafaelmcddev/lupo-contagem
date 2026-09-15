@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isMasterPasswordCorrect } from '@/lib/masterPassword';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +12,7 @@ export async function POST(req: Request) {
   }
   const password = String(body.password ?? '');
 
-  const expected = process.env.SETTINGS_MASTER_PASSWORD;
-  if (!expected || password !== expected) {
+  if (!isMasterPasswordCorrect(password)) {
     return NextResponse.json({ error: 'invalid_password' }, { status: 401 });
   }
 

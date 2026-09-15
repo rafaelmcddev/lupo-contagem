@@ -97,11 +97,13 @@ describe('GET /api/whatsapp/pending', () => {
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
   });
 
-  it('each pending item carries a ready-to-open WhatsApp Web URL', async () => {
+  it('each pending item carries the phone and ready-to-send message text — the URL is built client-side', async () => {
     await createSale();
     const res = await GET(getReq());
     const data = await res.json();
-    expect(data.pending[0].whatsappUrl).toMatch(/^https:\/\/wa\.me\/55/);
+    expect(data.pending[0].phone).toBe('99999-0000');
+    expect(typeof data.pending[0].message).toBe('string');
+    expect(data.pending[0].message.length).toBeGreaterThan(0);
   });
 
   it('does not list a sale bought 40 days ago (already expired) as a pending purchase', async () => {

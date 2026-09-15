@@ -13,6 +13,7 @@ import { ChartIcon, CheckIcon, PencilIcon, PlusIcon, SendIcon, TrashIcon, UsersI
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR, todayIso } from '@/lib/dates';
 import { DEFAULT_CASHBACK_MAX_USAGE_PERCENT, DEFAULT_CASHBACK_PERCENT, calculateMinPurchaseToUseCents, calculateRewardCents } from '@/lib/rewards';
+import { buildWhatsAppOpenUrl } from '@/lib/whatsapp';
 
 interface Customer {
   id: number;
@@ -66,7 +67,7 @@ function RecompensasContent() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editSaleDate, setEditSaleDate] = useState('');
   const [editValueCents, setEditValueCents] = useState(0);
-  const [pending, setPending] = useState<Array<{ saleId: number; type: 'purchase' | 'reminder'; customerName: string; whatsappUrl: string }>>([]);
+  const [pending, setPending] = useState<Array<{ saleId: number; type: 'purchase' | 'reminder'; customerName: string; phone: string; message: string }>>([]);
   const [processingPending, setProcessingPending] = useState(false);
   const [cashbackPercent, setCashbackPercent] = useState(DEFAULT_CASHBACK_PERCENT);
   const [cashbackMaxUsagePercent, setCashbackMaxUsagePercent] = useState(DEFAULT_CASHBACK_MAX_USAGE_PERCENT);
@@ -188,7 +189,7 @@ function RecompensasContent() {
     if (!next) return;
     setProcessingPending(true);
     try {
-      window.open(next.whatsappUrl, '_blank');
+      window.open(buildWhatsAppOpenUrl(next.phone, next.message, navigator.userAgent), '_blank');
       await fetch(`/api/whatsapp/pending/${next.type}/${next.saleId}/mark-opened`, { method: 'POST' });
       setPending((current) => current.slice(1));
     } finally {
@@ -218,7 +219,7 @@ function RecompensasContent() {
       return;
     }
     const data = await res.json();
-    window.open(data.whatsappUrl, '_blank');
+    window.open(buildWhatsAppOpenUrl(data.phone, data.message, navigator.userAgent), '_blank');
     // The manual send just logged a whatsapp_sends row for this sale, which
     // may be exactly what the pending queue's "N mensagens pendentes" count
     // was waiting on — refresh it so the banner doesn't keep showing a

@@ -8,7 +8,7 @@ import { formatDateBR } from '@/lib/dates';
 import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreCashbackSettings, type StoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
-import { buildRewardMessage, buildWhatsAppUrl, isWhatsAppApiConfigured } from '@/lib/whatsapp';
+import { buildRewardMessage, isWhatsAppApiConfigured } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +32,11 @@ function toItem(row: PendingRow, type: 'purchase' | 'reminder', storeSettings: S
     saleId: row.saleId,
     type,
     customerName: row.customerName,
-    whatsappUrl: buildWhatsAppUrl(row.customerPhone, message),
+    // The URL depends on the requesting device (app vs web.whatsapp.com), so
+    // it's built client-side from these — see lib/whatsapp.ts's
+    // buildWhatsAppOpenUrl.
+    phone: row.customerPhone,
+    message,
   };
 }
 

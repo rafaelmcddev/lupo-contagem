@@ -4,12 +4,9 @@ import SettingsPage from './page';
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  document.cookie = 'settings_master_ok=; path=/; max-age=0';
 });
 
-function unlock() {
-  document.cookie = 'settings_master_ok=1; path=/';
-}
+const MASTER_PASSWORD = 'super-secreto';
 
 const settingsResponse = {
   prefixLength: 7,
@@ -20,8 +17,28 @@ const settingsResponse = {
   whatsappMessageTemplate: 'Oi %nome%, de %loja%!',
 };
 
+// Types the master password into the real form and submits it — there is no
+// cached-unlock shortcut to skip this with (that's the point: it's always
+// asked). Returns the fetchMock so callers can assert on later calls too.
+async function unlockThroughForm(extraRouting: (url: string, init?: RequestInit) => any = () => undefined) {
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (url === '/api/master-password/verify') {
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+    }
+    return Promise.resolve(extraRouting(url, init) ?? { json: async () => settingsResponse });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<SettingsPage />);
+  await waitFor(() => expect(screen.getByPlaceholderText('Senha master')).toBeInTheDocument());
+  fireEvent.change(screen.getByPlaceholderText('Senha master'), { target: { value: MASTER_PASSWORD } });
+  fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
+
+  return fetchMock;
+}
+
 describe('SettingsPage', () => {
-  it('shows the master password form when not unlocked, without ever calling fetch', async () => {
+  it('shows the master password form when not unlocked, without ever calling /api/settings', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     render(<SettingsPage />);
@@ -29,10 +46,8 @@ describe('SettingsPage', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('loads and displays the current cashback settings, with no grouping fields', async () => {
-    unlock();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => settingsResponse }));
-    render(<SettingsPage />);
+  it('loads and displays the current cashback settings after unlocking, with no grouping fields', async () => {
+    await unlockThroughForm();
     await waitFor(() => expect(screen.getByLabelText(/Percentual de cashback/)).toHaveValue(5));
     expect(screen.getByLabelText(/Prazo de validade/)).toHaveValue(30);
     expect(screen.getByLabelText(/Cashback cobre no máximo/)).toHaveValue(20);
@@ -41,13 +56,9 @@ describe('SettingsPage', () => {
     expect(screen.queryByLabelText(/Exigir SKU/)).not.toBeInTheDocument();
   });
 
-  it('saves the updated cashback settings, preserving the grouping settings unchanged', async () => {
-    unlock();
-    const fetchMock = vi.fn().mockResolvedValue({ json: async () => settingsResponse });
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(<SettingsPage />);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+  it('saves the updated cashback settings, resending the typed master password with the save', async () => {
+    const fetchMock = await unlockThroughForm();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/settings'));
 
     fireEvent.change(screen.getByLabelText(/Percentual de cashback/), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText(/Prazo de validade/), { target: { value: '45' } });
@@ -61,6 +72,7 @@ describe('SettingsPage', () => {
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify({
+            masterPassword: MASTER_PASSWORD,
             prefixLength: 7,
             requireSku: true,
             cashbackPercent: 10,

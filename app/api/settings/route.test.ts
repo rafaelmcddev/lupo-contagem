@@ -2,15 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CASHBACK_EXPIRY_DAYS, DEFAULT_CASHBACK_MAX_USAGE_PERCENT, DEFAULT_CASHBACK_PERCENT } from '@/lib/rewards';
 import { DEFAULT_WHATSAPP_MESSAGE_TEMPLATE } from '@/lib/whatsapp';
 import { resetDb } from '@/tests/resetDb';
-import { masterUnlockedRequest } from '@/tests/testMasterPassword';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { GET, PUT } from './route';
+
+const MASTER_PASSWORD = 'test-master-password';
 
 let storeId: number;
 
 beforeEach(async () => {
   await resetDb();
   storeId = await getTestStoreId();
+  vi.stubEnv('SETTINGS_MASTER_PASSWORD', MASTER_PASSWORD);
 });
 
 afterEach(() => {
@@ -22,7 +24,10 @@ function getReq() {
 }
 
 function putReq(body: object) {
-  return masterUnlockedRequest('http://localhost/api/settings', storeId, { method: 'PUT', body: JSON.stringify(body) });
+  return storeRequest('http://localhost/api/settings', storeId, {
+    method: 'PUT',
+    body: JSON.stringify({ masterPassword: MASTER_PASSWORD, ...body }),
+  });
 }
 
 const validCashbackBody = {
@@ -125,8 +130,20 @@ describe('/api/settings', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects a save without the master password unlocked', async () => {
-    const res = await PUT(storeRequest('http://localhost/api/settings', storeId, { method: 'PUT', body: JSON.stringify(validCashbackBody) }));
+  it('rejects a save with a missing masterPassword — it is never cached, always sent fresh', async () => {
+    const res = await PUT(
+      storeRequest('http://localhost/api/settings', storeId, { method: 'PUT', body: JSON.stringify(validCashbackBody) }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a save with the wrong masterPassword', async () => {
+    const res = await PUT(
+      storeRequest('http://localhost/api/settings', storeId, {
+        method: 'PUT',
+        body: JSON.stringify({ masterPassword: 'errada', ...validCashbackBody }),
+      }),
+    );
     expect(res.status).toBe(401);
   });
 });

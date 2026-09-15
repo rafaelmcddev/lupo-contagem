@@ -57,10 +57,23 @@ function toE164Digits(phone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
-// wa.me is WhatsApp's universal link: it opens the native app on a phone
-// and falls back to WhatsApp Web on a desktop browser, from the same URL.
-export function buildWhatsAppUrl(phone: string, text: string): string {
-  return `https://wa.me/${toE164Digits(phone)}?text=${encodeURIComponent(text)}`;
+export function isMobileUserAgent(userAgent: string): boolean {
+  return /android|iphone|ipad|ipod/i.test(userAgent);
+}
+
+// wa.me/api.whatsapp.com (WhatsApp's universal "click to chat" redirect) was
+// found in production to garble some emoji in the pre-filled text — every
+// occurrence turned into "�". web.whatsapp.com/send doesn't have that
+// problem, so desktop uses it directly; mobile can't use it the same way
+// (it's the web client, not the app), so it opens the app directly instead
+// via the whatsapp:// URI scheme, bypassing the broken redirect entirely.
+// Takes the user agent as a parameter (instead of reading navigator itself)
+// so it stays a plain, easily testable function — call sites pass
+// navigator.userAgent.
+export function buildWhatsAppOpenUrl(phone: string, text: string, userAgent: string): string {
+  const digits = toE164Digits(phone);
+  const encoded = encodeURIComponent(text);
+  return isMobileUserAgent(userAgent) ? `whatsapp://send?phone=${digits}&text=${encoded}` : `https://web.whatsapp.com/send?phone=${digits}&text=${encoded}`;
 }
 
 export async function sendViaMetaApi(

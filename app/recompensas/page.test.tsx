@@ -244,7 +244,7 @@ describe('RecompensasPage', () => {
       }
       if (url === '/api/whatsapp/pending') {
         return Promise.resolve({
-          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=x' }] }),
+          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', phone: '67999990000', message: 'x' }] }),
         });
       }
       if (url === '/api/whatsapp/pending/purchase/1/mark-opened' && method === 'POST') {
@@ -259,7 +259,9 @@ describe('RecompensasPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Processar próxima' }));
 
-    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=1&text=x', '_blank'));
+    // jsdom's default user agent isn't a mobile one, so this resolves to the
+    // desktop (web.whatsapp.com) branch of buildWhatsAppOpenUrl.
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=5567999990000&text=x', '_blank'));
     await waitFor(() => {
       const markCall = fetchMock.mock.calls.find(([u]: [string]) => u === '/api/whatsapp/pending/purchase/1/mark-opened');
       expect(markCall).toBeDefined();
@@ -280,7 +282,7 @@ describe('RecompensasPage', () => {
       if (url === '/api/settings') return Promise.resolve({ json: async () => ({ whatsappApiConfigured: false }) });
       if (url === '/api/whatsapp/pending') {
         return Promise.resolve({
-          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', whatsappUrl: 'https://wa.me/1?text=x' }] }),
+          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', phone: '67999990000', message: 'x' }] }),
         });
       }
       return Promise.resolve({ json: async () => ({ sales: [], total: 0 }) });
@@ -304,7 +306,7 @@ describe('RecompensasPage', () => {
         return Promise.resolve({ json: async () => ({ pending: [] }) });
       }
       if (url === '/api/sales/1/send-reminder' && method === 'POST') {
-        return Promise.resolve({ ok: true, json: async () => ({ whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=lembrete' }) });
+        return Promise.resolve({ ok: true, json: async () => ({ phone: '67999990000', message: 'lembrete' }) });
       }
       return Promise.resolve({ json: async () => ({}) });
     });
@@ -314,7 +316,9 @@ describe('RecompensasPage', () => {
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Enviar lembrete' }));
 
-    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=1&text=lembrete', '_blank'));
+    await waitFor(() =>
+      expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=5567999990000&text=lembrete', '_blank'),
+    );
   });
 
   it('refreshes the pending-messages count after a manual reminder is sent, so a resolved item stops showing', async () => {
@@ -333,11 +337,11 @@ describe('RecompensasPage', () => {
         pendingCallCount += 1;
         // Pending on the first load (mount); resolved by the time the page
         // asks again after the manual send.
-        const pending = pendingCallCount === 1 ? [{ saleId: 1, type: 'reminder', customerName: 'Ana', whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=x' }] : [];
+        const pending = pendingCallCount === 1 ? [{ saleId: 1, type: 'reminder', customerName: 'Ana', phone: '67999990000', message: 'x' }] : [];
         return Promise.resolve({ json: async () => ({ pending }) });
       }
       if (url === '/api/sales/1/send-reminder' && method === 'POST') {
-        return Promise.resolve({ ok: true, json: async () => ({ whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=lembrete' }) });
+        return Promise.resolve({ ok: true, json: async () => ({ phone: '67999990000', message: 'lembrete' }) });
       }
       return Promise.resolve({ json: async () => ({}) });
     });
