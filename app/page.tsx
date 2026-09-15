@@ -123,7 +123,7 @@ function HomeContent() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <PageHeading>Contagem de Estoque</PageHeading>
         <Link href="/history" className="text-sm font-semibold text-accent hover:underline">
           Histórico

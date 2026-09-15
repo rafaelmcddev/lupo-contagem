@@ -128,7 +128,7 @@ export function CustomerPicker({ onSelect }: { onSelect: (customer: Customer) =>
         </ul>
       )}
       {searched && results.length === 0 && !showCreateForm && (
-        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-canvas px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-canvas px-4 py-3">
           <span className="text-sm text-gray-600">Cliente não encontrado.</span>
           <button type="button" onClick={openCreateForm} className="text-sm font-semibold text-accent hover:underline">
             Cadastrar novo cliente

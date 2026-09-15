@@ -63,7 +63,10 @@ export function Nav() {
           );
         })}
         {storeName && (
-          <li className="ml-auto shrink-0 self-center px-2 text-sm font-medium uppercase text-gray-500">
+          <li
+            className="ml-auto max-w-[40vw] shrink-0 self-center truncate px-2 text-sm font-medium uppercase text-gray-500 sm:max-w-[220px]"
+            title={storeName}
+          >
             {storeName}
           </li>
         )}

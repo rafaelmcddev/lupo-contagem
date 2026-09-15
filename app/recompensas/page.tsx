@@ -228,9 +228,9 @@ function RecompensasContent() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <PageHeading>Recompensas</PageHeading>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <LinkButton href="/recompensas/relatorio" size="sm" icon={<ChartIcon />}>
             Relatório de vencimentos
           </LinkButton>
@@ -253,15 +253,15 @@ function RecompensasContent() {
 
       <form onSubmit={registerSale} className="mb-10 flex flex-col gap-4">
         {selectedCustomer ? (
-          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-canvas px-4 py-3">
-            <span>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-canvas px-4 py-3">
+            <span className="min-w-0 truncate">
               <span className="font-semibold">{selectedCustomer.name}</span>{' '}
               <span className="text-sm text-gray-500">{selectedCustomer.phone}</span>
             </span>
             <button
               type="button"
               onClick={() => setSelectedCustomer(null)}
-              className="text-sm font-semibold text-gray-500 hover:underline"
+              className="shrink-0 text-sm font-semibold text-gray-500 hover:underline"
             >
               Trocar
             </button>

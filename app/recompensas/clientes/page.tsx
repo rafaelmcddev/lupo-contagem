@@ -142,7 +142,7 @@ function ClientesContent() {
 
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <PageHeading>Clientes</PageHeading>
         <Link href="/recompensas" className="text-sm font-semibold text-accent hover:underline">
           Voltar pra Recompensas
