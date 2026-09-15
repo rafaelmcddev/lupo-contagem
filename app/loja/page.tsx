@@ -34,7 +34,7 @@ export default function LojaPage() {
             key={store.id}
             variant="secondary"
             onClick={() => selectStore(store.id)}
-            className="w-full py-8 text-2xl uppercase"
+            className="w-full rounded-2xl border-gray-200 bg-paper py-5 text-lg shadow-sm hover:bg-canvas"
           >
             {store.name}
           </Button>
