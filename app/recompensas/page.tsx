@@ -1,15 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { LinkButton } from '@/components/ui/LinkButton';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
 import { Table } from '@/components/ui/Table';
 import { CurrencyInput } from '@/components/ui/CurrencyInput';
 import { CustomerPicker } from '@/components/CustomerPicker';
 import { PinGate } from '@/components/PinGate';
-import { CheckIcon, PencilIcon, PlusIcon, SendIcon, TrashIcon, XIcon } from '@/components/ui/icons';
+import { ChartIcon, CheckIcon, PencilIcon, PlusIcon, SendIcon, TrashIcon, UsersIcon, XIcon } from '@/components/ui/icons';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR, todayIso } from '@/lib/dates';
 import { calculateRewardCents } from '@/lib/rewards';
@@ -213,13 +213,13 @@ function RecompensasContent() {
     <main className="mx-auto max-w-3xl p-4 sm:p-8">
       <div className="mb-6 flex items-center justify-between">
         <PageHeading>Recompensas</PageHeading>
-        <div className="flex gap-4">
-          <Link href="/recompensas/relatorio" className="text-sm font-semibold text-accent hover:underline">
+        <div className="flex gap-2">
+          <LinkButton href="/recompensas/relatorio" size="sm" icon={<ChartIcon />}>
             Relatório de vencimentos
-          </Link>
-          <Link href="/recompensas/clientes" className="text-sm font-semibold text-accent hover:underline">
+          </LinkButton>
+          <LinkButton href="/recompensas/clientes" size="sm" icon={<UsersIcon />}>
             Gerenciar clientes
-          </Link>
+          </LinkButton>
         </div>
       </div>
 
