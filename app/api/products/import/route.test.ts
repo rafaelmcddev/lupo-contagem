@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { POST } from './route';
 
 let storeId: number;
@@ -13,10 +14,15 @@ beforeEach(async () => {
 });
 
 function postReq(csv: string) {
-  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ csv }) });
+  return unlockedRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ csv }) });
 }
 
 describe('/api/products/import', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ csv: '' }) }));
+    expect(res.status).toBe(401);
+  });
+
   it('creates new products from valid rows', async () => {
     const csv = 'nome;sku;codebar\nCueca Slip Preta P;CUECA-SLIP-P;7891234000011\nCueca Slip Preta M;CUECA-SLIP-M;7891234000028';
     const res = await POST(postReq(csv));
@@ -67,7 +73,7 @@ describe('/api/products/import', () => {
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
+    const res = await POST(unlockedRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 });

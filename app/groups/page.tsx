@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { PlusIcon, TrashIcon } from '@/components/ui/icons';
+import { PinGate } from '@/components/PinGate';
 
 interface Group {
   id: number;
@@ -13,6 +14,16 @@ interface Group {
 }
 
 export default function GroupsPage() {
+  return (
+    <PinGate>
+      <GroupsContent />
+    </PinGate>
+  );
+}
+
+// Split out so this content — and its data-loading effect — only mounts
+// once PinGate has actually unlocked (same reasoning as RecompensasContent).
+function GroupsContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [prefix, setPrefix] = useState('');
   const [name, setName] = useState('');

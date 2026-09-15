@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { settings } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { GET, POST } from './route';
 
 let storeId: number;
@@ -13,14 +14,21 @@ beforeEach(async () => {
 });
 
 function postReq(body: unknown) {
-  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
+  return unlockedRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 function getReq(query = '') {
-  return storeRequest(`http://localhost/api/countings${query}`, storeId);
+  return unlockedRequest(`http://localhost/api/countings${query}`, storeId);
 }
 
 describe('/api/countings', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const getRes = await GET(storeRequest('http://localhost/api/countings', storeId));
+    expect(getRes.status).toBe(401);
+    const postRes = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ name: 'X' }) }));
+    expect(postRes.status).toBe(401);
+  });
+
   it('creates a counting with the current prefix length frozen onto it', async () => {
     const res = await POST(postReq({ name: 'Entrega Lupo 03/09' }));
     expect(res.status).toBe(201);
@@ -80,7 +88,7 @@ describe('/api/countings', () => {
   it('only lists countings from the current store', async () => {
     await POST(postReq({ name: 'Loja atual' }));
     const otherStoreId = await getTestStoreId('campo-grande-ms');
-    await POST(storeRequest('http://localhost', otherStoreId, { method: 'POST', body: JSON.stringify({ name: 'Outra loja' }) }));
+    await POST(unlockedRequest('http://localhost', otherStoreId, { method: 'POST', body: JSON.stringify({ name: 'Outra loja' }) }));
 
     const res = await GET(getReq());
     const data = await res.json();
@@ -89,7 +97,7 @@ describe('/api/countings', () => {
   });
 
   it('returns 400 invalid_json when the body is malformed', async () => {
-    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
+    const res = await POST(unlockedRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('invalid_json');

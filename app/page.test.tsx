@@ -1,9 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import HomePage from './page';
+
+beforeEach(() => {
+  document.cookie = 'store_id=1; path=/';
+  document.cookie = 'sale_pin_ok=1; path=/';
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  document.cookie = 'store_id=; path=/; max-age=0';
+  document.cookie = 'sale_pin_ok=; path=/; max-age=0';
 });
 
 describe('HomePage', () => {
@@ -92,6 +99,7 @@ describe('HomePage', () => {
   it('links to the countings history', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ countings: [] }) }));
     render(<HomePage />);
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Histórico' })).toBeInTheDocument());
     expect(screen.getByRole('link', { name: 'Histórico' })).toHaveAttribute('href', '/history');
   });
 });

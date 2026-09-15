@@ -24,11 +24,11 @@ npm test
 
 Requer o mesmo Postgres local rodando (`docker compose up -d`) — a maioria dos testes são de integração reais contra o banco, não mocks. Os testes rodam sequencialmente (`fileParallelism: false` no `vitest.config.ts`) porque compartilham um único banco, limpo via `TRUNCATE` entre testes.
 
-## Lojas (Coxim-MS e Campo Grande-MS)
+## Lojas
 
-O sistema roda para duas lojas físicas. Ao abrir qualquer página sem uma loja escolhida, o usuário é redirecionado para `/loja` — a escolha fica salva num cookie `store_id` no navegador (sem expiração curta), e "Trocar loja" no menu limpa esse cookie. Contagens, Produtos (SKUs) e Grupos são independentes por loja; Configurações (prefixo de grupo, exigir SKU) é global para as duas.
+O sistema roda para 8 lojas físicas (2 em Coxim-MS, 6 em Campo Grande-MS — marcas Loja Up, Loja Caju Brasil e Loja Ceci Shoes). Ao abrir qualquer página sem uma loja escolhida, o usuário é redirecionado para `/loja` — a escolha fica salva num cookie `store_id` no navegador (sem expiração curta), e "Trocar loja" no menu limpa esse cookie. Contagens, Produtos (SKUs), Grupos e o programa de recompensas são independentes por loja; Configurações (prefixo de grupo, exigir SKU) é global para todas.
 
-As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir uma terceira loja hoje é um `INSERT` manual na tabela `stores`, sem UI de administração (fora do escopo atual).
+As lojas são linhas na tabela `stores` — abrir uma nova loja hoje é um `INSERT` manual (sem UI de administração, fora do escopo atual). Cada loja tem seu próprio PIN de acesso (veja a seção abaixo) e pode ter seu próprio percentual/prazo/limite de cashback, definidos em Configurações.
 
 ## Programa de recompensa: clientes e vendas
 
@@ -36,15 +36,27 @@ As duas lojas nascem via seed na migração `db/migrations/0004_*.sql` — abrir
 
 ### PIN de acesso — o que é e onde ver/trocar
 
-Ambas as telas ficam atrás de um PIN por loja — **não é controle de usuário** (não sabe quem lançou o quê), só uma trava simples contra acesso por pessoas de fora. O PIN de cada loja é uma variável de ambiente, nome derivado do slug: `SALE_PIN_COXIM_MS`, `SALE_PIN_CAMPO_GRANDE_MS`. Digitar o PIN uma vez destrava o dispositivo pra aquela loja (cookie perene) até trocar de loja ou limpar os cookies.
+O PIN de loja funciona como um "login" simples por dispositivo: destrava **Contagens, Produtos, Grupos, Histórico e Recompensas** de uma vez (não é controle de usuário — não sabe quem lançou o quê — só uma trava contra acesso por pessoas de fora). É pedido assim que se tenta acessar qualquer uma dessas telas depois de escolher a loja; digitar uma vez destrava o dispositivo pra aquela loja (cookie perene, 1 ano) até trocar de loja ou limpar os cookies.
 
-Pra ver ou trocar o PIN de produção: painel da Vercel → o projeto → **Settings → Environment Variables** → procure `SALE_PIN_COXIM_MS`/`SALE_PIN_CAMPO_GRANDE_MS`. A Vercel mostra o valor já salvo ali (ou permite revelar). Se trocar o valor, é preciso fazer um novo deploy pra pegar — env vars não atualizam um deploy já publicado sozinhas.
+O PIN de cada loja é uma variável de ambiente, nome derivado do slug (maiúsculo, `-` vira `_`): `SALE_PIN_LOJA_UP_COXIM_MS`, `SALE_PIN_LOJA_CAJU_BRASIL_COXIM_MS`, etc. — veja a lista completa das 8 no final desta seção.
+
+Pra ver ou trocar o PIN de produção: painel da Vercel → o projeto → **Settings → Environment Variables** → procure a variável da loja. A Vercel mostra o valor já salvo ali (ou permite revelar). Se trocar o valor, é preciso fazer um novo deploy pra pegar — env vars não atualizam um deploy já publicado sozinhas.
+
+### Senha master — protege as Configurações
+
+`/settings` (percentuais de cashback, prazo, limite de uso, texto da mensagem do WhatsApp, dígitos do grupo, exigir SKU) fica atrás de uma **senha separada do PIN de loja** — o PIN de loja destrava o dia a dia (vendas, contagens); a senha master é quem pode mudar as regras do negócio, então só quem administra deve ter ela. É uma única senha global (não por loja), variável de ambiente `SETTINGS_MASTER_PASSWORD`, com cookie próprio (`settings_master_ok`) que não se mistura com o PIN de loja.
 
 ### Cálculo do cashback
 
-A recompensa é **5% do valor da venda**, válida por **30 dias** a partir da data da compra — calculada na hora, em toda tela que precisa dela (o valor nunca fica guardado numa coluna própria, pra nunca dessincronizar). A lógica inteira vive em `lib/rewards.ts` (`calculateRewardCents`, `calculateExpiresAt`) — é o único lugar que sabe esses dois números; se o percentual ou o prazo mudar um dia, é só ali.
+Cada loja tem seu próprio percentual, prazo de validade e limite de uso — configuráveis em `/settings` (atrás da senha master), com os seguintes padrões caso a loja não tenha definido nada:
 
-Cada venda tem um campo "cashback usado" (booleano, `sales.cashback_used`) — o botão "Marcar como usado"/"Desmarcar" em `/recompensas` deixa a funcionária corrigir na hora se clicar errado. Não afeta o cálculo nem o vencimento, só o status pro relatório.
+- **Percentual**: 5% do valor da venda.
+- **Prazo de validade**: o crédito não fica disponível no dia da compra nem nos 2 dias seguintes — só passa a valer **3 dias depois**, e permanece válido por mais 30 dias a partir daí. Numa compra em 30/09, por exemplo, o crédito vale de 3/10 até 1/11 (vence, de fato, em 2/11).
+- **Limite de uso**: o crédito nunca cobre mais que **20% do valor da compra nova** onde for usado — um cliente com R$ 50 de crédito só consegue usar o valor todo numa compra de R$ 250 ou mais; abaixo disso, o desconto fica limitado a esse percentual. Esse mínimo de compra aparece tanto na mensagem do WhatsApp quanto na grid de `/recompensas` e no relatório.
+
+O valor nunca fica guardado numa coluna própria — é sempre recalculado na hora, em toda tela que precisa dele, a partir do percentual/prazo/limite atuais da loja. Isso quer dizer que mudar esses números em Configurações recalcula também vendas antigas, não só as novas a partir dali. A lógica inteira vive em `lib/rewards.ts` (`calculateRewardCents`, `calculateExpiresAt`, `calculateMinPurchaseToUseCents`).
+
+Cada venda tem um campo "cashback usado" (booleano, `sales.cashback_used`) — o botão "Marcar como usado"/"Desmarcar" em `/recompensas` deixa a funcionária corrigir na hora se clicar errado. Não afeta o cálculo nem o vencimento, só o status pro relatório — e uma venda com cashback já usado **nunca** é apagada pela limpeza automática (veja mais abaixo), mesmo depois de vencida.
 
 ### Avisos por WhatsApp: como funciona hoje, e como ligar o modo automático
 
@@ -52,19 +64,43 @@ O aviso ao cliente (mensagem de "você ganhou cashback") funciona em **dois modo
 
 **Modo fila (é o modo atual, enquanto as 3 variáveis não existem):**
 
-Como nenhum site consegue controlar o que acontece dentro de outro (proteção de segurança de todo navegador, não uma limitação deste projeto), não tem como o sistema mandar a mensagem sozinho sem a API oficial. Em vez disso, `/recompensas` mostra uma faixa "N mensagens pendentes" sempre que existir uma confirmação de compra ou um lembrete (5 dias antes de vencer os 30) ainda não tratado. Cada clique em **"Processar próxima"** abre uma aba nova do WhatsApp Web (`web.whatsapp.com`) já com o número e o texto preenchidos, usando a sessão que já estiver logada no navegador — a funcionária só confere e clica em **Enviar** dentro do próprio WhatsApp. O botão **"Enviar lembrete"** (na linha de cada venda) faz a mesma coisa a qualquer momento, sem depender dos 5 dias.
+Como nenhum site consegue controlar o que acontece dentro de outro (proteção de segurança de todo navegador, não uma limitação deste projeto), não tem como o sistema mandar a mensagem sozinho sem a API oficial. Em vez disso, `/recompensas` mostra uma faixa "N mensagens pendentes" sempre que existir uma confirmação de compra ou um lembrete ainda não tratado — **essa faixa só aparece depois que o modo automático estiver ligado** (mesmas 3 variáveis abaixo); enquanto elas não existirem, ela fica sempre escondida, pra não incomodar no dia a dia. Cada clique em **"Processar próxima"** abre uma aba nova do WhatsApp (link `wa.me`, que abre o aplicativo no celular e o WhatsApp Web no computador, automaticamente) já com o número e o texto preenchidos, usando a sessão que já estiver logada — a funcionária só confere e clica em **Enviar** dentro do próprio WhatsApp. O botão **"Enviar lembrete"** (na linha de cada venda) faz a mesma coisa a qualquer momento, independente da faixa.
 
 **Modo automático (liga sozinho assim que as 3 variáveis existirem):**
 
 - A confirmação de compra sai na hora, ao registrar a venda.
-- O lembrete roda sozinho, uma vez por dia, via **Vercel Cron** (configurado em `vercel.json`, rota `GET /api/cron/reward-reminders`, protegida por uma quarta variável, `CRON_SECRET`, pra ninguém mais conseguir chamar essa rota).
+- O lembrete roda sozinho, uma vez por dia, via **Vercel Cron** (configurado em `vercel.json`, rota `GET /api/cron/reward-reminders`, protegida por uma quarta variável, `CRON_SECRET`, pra ninguém mais conseguir chamar essa rota), 5 dias antes do vencimento.
 - A fila manual desaparece sozinha (deixa de mostrar qualquer coisa, já que os envios acontecem em segundo plano).
+
+**Texto da mensagem — editável em Configurações, atrás da senha master:**
+
+O texto abaixo é o padrão de cada loja (pode ser editado por loja em `/settings`). Placeholders trocados automaticamente: `%nome%`, `%loja%` (nome desta loja), `%dia%`, `%cashback%`, `%data_limite%`, `%limite_uso%` (o percentual, ex. "20%") e `%compra_minima%` (o valor mínimo de compra pra usar o crédito todo). Editar esse texto só vale pro envio manual (modo fila) — no modo automático, o texto exato enviado é o aprovado no painel da Meta (passo 3 abaixo), que não pode ser mudado por aqui.
+
+```
+Olá, %nome%! 👋
+
+Agradecemos por escolher a %loja%! 💙
+
+Temos uma boa notícia para você! 🎉
+
+Sua compra realizada no dia %dia% gerou %cashback% de crédito para desconto em sua próxima compra.
+
+📅 Você pode utilizar esse valor a partir de amanhã e até: %data_limite%
+
+⚠️ Esse crédito pode cobrir até %limite_uso% do valor da sua próxima compra — então, para usar o valor todo, ela precisa ser de pelo menos %compra_minima%.
+
+É só visitar nossa loja física e aproveitar o seu crédito para pagar menos na sua próxima compra! 😊
+
+Após essa data, o crédito não poderá mais ser utilizado.
+
+Esperamos você! 💙
+```
 
 **Passo a passo pra ativar o modo automático, quando for a hora:**
 
 1. Criar/acessar uma conta no [Meta for Developers](https://developers.facebook.com/) e configurar o **WhatsApp Business Platform** pra essa conta.
 2. Verificar um número de telefone comercial (o número que vai aparecer pro cliente como remetente da mensagem).
-3. Cadastrar o texto abaixo como **template de mensagem** no painel da Meta, e esperar a aprovação (a Meta exige isso pra qualquer mensagem que a loja inicia sem o cliente ter escrito antes — pode levar de horas a alguns dias):
+3. Cadastrar o texto abaixo como **template de mensagem** no painel da Meta, e esperar a aprovação (a Meta exige isso pra qualquer mensagem que a loja inicia sem o cliente ter escrito antes — pode levar de horas a alguns dias). Esse template é fixo por loja no lado da Meta (não dá pra trocar o nome da loja dinamicamente ali) — use o nome da loja principal, ou cadastre um template por loja se quiser textos diferentes:
 
    ```
    Olá, {{1}}! 👋
@@ -84,7 +120,7 @@ Como nenhum site consegue controlar o que acontece dentro de outro (proteção d
    Esperamos você! 💙
    ```
 
-   (`{{1}}` = nome do cliente, `{{2}}` = data da compra, `{{3}}` = valor do cashback, `{{4}}` = data limite — nessa ordem; é o mesmo texto usado no modo fila, só que lá os `{{N}}` já vêm substituídos direto no link do WhatsApp Web.)
+   (`{{1}}` = nome do cliente, `{{2}}` = data da compra, `{{3}}` = valor do cashback, `{{4}}` = data limite — nessa ordem. Diferente do texto editável do modo fila, esse template da Meta não suporta os placeholders de limite de uso/compra mínima nem o nome dinâmico da loja — é aprovado uma vez e fica fixo.)
 4. Depois de aprovado, pegar na Meta: o **token de acesso** permanente, o **Phone Number ID**, e o **nome exato do template** que você cadastrou.
 5. No painel da Vercel → o projeto → **Settings → Environment Variables**, adicionar:
    - `META_WHATSAPP_TOKEN`
@@ -97,7 +133,22 @@ Todo o código do envio (`lib/whatsapp.ts`, incluindo a chamada à API da Meta) 
 
 ### Relatório de recompensas a vencer e limpeza de vendas antigas
 
-`/recompensas/relatorio` lista as vendas cujo cashback vence nos próximos 10 dias (padrão — dá pra abrir o intervalo de data), com filtro de "cashback já utilizado". Nessa mesma tela fica o botão **"Limpar vendas com cashback expirado"** — apaga permanentemente (não é soft-delete) as vendas com mais de 30 dias, já que o plano gratuito da Neon tem limite de tamanho de banco; mostra quantas vendas serão apagadas antes de confirmar, e guarda um histórico (só data/hora + quantidade) de cada limpeza já feita, embaixo do botão.
+`/recompensas/relatorio` lista as vendas cujo cashback vence nos próximos 10 dias (padrão — dá pra abrir o intervalo de data), com filtro de "cashback já utilizado", e mostra um totalizador (quantidade, valor total e cashback total) considerando todo o período filtrado, não só a página visível. Nessa mesma tela fica o botão **"Limpar vendas com cashback expirado e não usado"** — apaga permanentemente (não é soft-delete) as vendas cujo cashback venceu **sem nunca ter sido usado** (vendas com cashback já utilizado nunca são apagadas, mesmo vencidas), já que o plano gratuito da Neon tem limite de tamanho de banco; mostra quantas vendas serão apagadas antes de confirmar, e guarda um histórico (só data/hora + quantidade) de cada limpeza já feita, embaixo do botão.
+
+### Variáveis de ambiente — PIN de cada loja
+
+```
+SALE_PIN_LOJA_UP_COXIM_MS
+SALE_PIN_LOJA_CAJU_BRASIL_COXIM_MS
+SALE_PIN_LOJA_UP_JARDIM_DOS_ESTADOS_CG
+SALE_PIN_LOJA_CAJU_BRASIL_JARDIM_DOS_ESTADOS_CG
+SALE_PIN_LOJA_UP_SPIPE_CALARGE_CG
+SALE_PIN_LOJA_UP_BRILHANTE_CG
+SALE_PIN_LOJA_UP_PATIO_CENTRAL_CG
+SALE_PIN_LOJA_CECI_SHOES_NORTE_SUL_CG
+```
+
+Mais `SETTINGS_MASTER_PASSWORD` (senha master única, global — veja acima) e `META_WHATSAPP_TOKEN`/`META_WHATSAPP_PHONE_NUMBER_ID`/`META_WHATSAPP_TEMPLATE_NAME`/`CRON_SECRET` (modo automático do WhatsApp — veja acima).
 
 ## Deploy
 

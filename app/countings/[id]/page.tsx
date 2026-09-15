@@ -12,6 +12,7 @@ import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
 import { unlockSpeech, useSpeechAnnouncer } from '@/hooks/useSpeechAnnouncer';
 import { enqueueScan, loadQueue, removeFromQueue } from '@/lib/scanQueue';
+import { PinGate } from '@/components/PinGate';
 
 const BOX_PAGE_SIZE = 30;
 const BOX_SEARCH_THRESHOLD = 8;
@@ -32,6 +33,16 @@ interface CountingDetail {
 }
 
 export default function CountingPage({ params }: { params: { id: string } }) {
+  return (
+    <PinGate>
+      <CountingContent params={params} />
+    </PinGate>
+  );
+}
+
+// Split out so this content — and its data-loading effect — only mounts
+// once PinGate has actually unlocked (same reasoning as RecompensasContent).
+function CountingContent({ params }: { params: { id: string } }) {
   const countingId = params.id;
   const [detail, setDetail] = useState<CountingDetail | null>(null);
   const [showCamera, setShowCamera] = useState(false);

@@ -4,6 +4,7 @@ import { db } from '@/db/client';
 import { countings, invoiceItems, skus } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { POST } from './route';
 
 let storeId: number;
@@ -14,7 +15,7 @@ beforeEach(async () => {
 });
 
 function postReq(body: unknown) {
-  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
+  return unlockedRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 function sampleXml(nNF = '1001') {
@@ -46,6 +47,11 @@ function sampleXml(nNF = '1001') {
 }
 
 describe('/api/countings/import-xml', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ xml: sampleXml() }) }));
+    expect(res.status).toBe(401);
+  });
+
   it('creates an xml-sourced counting with invoice items and updates the products catalog', async () => {
     const res = await POST(postReq({ xml: sampleXml() }));
     expect(res.status).toBe(201);
@@ -103,7 +109,7 @@ describe('/api/countings/import-xml', () => {
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
+    const res = await POST(unlockedRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 

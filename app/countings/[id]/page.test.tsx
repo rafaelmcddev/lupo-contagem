@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CountingPage from './page';
 
 const { decodeFromVideoDevice, stop } = vi.hoisted(() => ({
@@ -13,10 +13,17 @@ vi.mock('@zxing/browser', () => ({
   })),
 }));
 
+beforeEach(() => {
+  document.cookie = 'store_id=1; path=/';
+  document.cookie = 'sale_pin_ok=1; path=/';
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   window.localStorage.clear();
+  document.cookie = 'store_id=; path=/; max-age=0';
+  document.cookie = 'sale_pin_ok=; path=/; max-age=0';
 });
 
 const activeDetail = {

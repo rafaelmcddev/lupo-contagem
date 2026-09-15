@@ -4,6 +4,7 @@ import { settings, skus } from '@/db/schema';
 import { REQUIRE_SKU_KEY } from '@/lib/getRequireSku';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { DELETE, PUT } from './route';
 
 let storeId: number;
@@ -22,10 +23,21 @@ async function createProduct(overrideStoreId = storeId) {
 }
 
 describe('/api/products/:barcode', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const putRes = await PUT(storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: 'X' }) }), {
+      params: { barcode: '7891234000011' },
+    });
+    expect(putRes.status).toBe(401);
+    const deleteRes = await DELETE(storeRequest('http://localhost', storeId, { method: 'DELETE' }), {
+      params: { barcode: '7891234000011' },
+    });
+    expect(deleteRes.status).toBe(401);
+  });
+
   it('edits sku and name', async () => {
     await createProduct();
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'NOVO-SKU', name: 'Novo nome' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'NOVO-SKU', name: 'Novo nome' }) }),
       { params: { barcode: '7891234000011' } },
     );
     const data = await res.json();
@@ -34,7 +46,7 @@ describe('/api/products/:barcode', () => {
 
   it('returns 404 when editing a barcode that does not exist', async () => {
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: 'X' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: 'X' }) }),
       { params: { barcode: '0000000000000' } },
     );
     expect(res.status).toBe(404);
@@ -44,7 +56,7 @@ describe('/api/products/:barcode', () => {
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     await createProduct(otherStoreId);
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: 'X' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: 'X' }) }),
       { params: { barcode: '7891234000011' } },
     );
     expect(res.status).toBe(404);
@@ -53,7 +65,7 @@ describe('/api/products/:barcode', () => {
   it('rejects an empty name on edit regardless of the require-SKU setting', async () => {
     await createProduct();
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: '' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: 'X', name: '' }) }),
       { params: { barcode: '7891234000011' } },
     );
     expect(res.status).toBe(400);
@@ -62,7 +74,7 @@ describe('/api/products/:barcode', () => {
   it('rejects an empty sku on edit when "Exigir SKU" is on (the default)', async () => {
     await createProduct();
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: '', name: 'X' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: '', name: 'X' }) }),
       { params: { barcode: '7891234000011' } },
     );
     expect(res.status).toBe(400);
@@ -74,7 +86,7 @@ describe('/api/products/:barcode', () => {
     await createProduct();
     await db.insert(settings).values({ key: REQUIRE_SKU_KEY, value: 'false' });
     const res = await PUT(
-      storeRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: '', name: 'Sem SKU mesmo' }) }),
+      unlockedRequest('http://localhost', storeId, { method: 'PUT', body: JSON.stringify({ sku: '', name: 'Sem SKU mesmo' }) }),
       { params: { barcode: '7891234000011' } },
     );
     expect(res.status).toBe(200);
@@ -84,7 +96,7 @@ describe('/api/products/:barcode', () => {
 
   it('removes a product', async () => {
     await createProduct();
-    const res = await DELETE(storeRequest('http://localhost', storeId, { method: 'DELETE' }), {
+    const res = await DELETE(unlockedRequest('http://localhost', storeId, { method: 'DELETE' }), {
       params: { barcode: '7891234000011' },
     });
     expect(res.status).toBe(200);
@@ -93,7 +105,7 @@ describe('/api/products/:barcode', () => {
   });
 
   it('returns 404 when removing a barcode that does not exist', async () => {
-    const res = await DELETE(storeRequest('http://localhost', storeId, { method: 'DELETE' }), {
+    const res = await DELETE(unlockedRequest('http://localhost', storeId, { method: 'DELETE' }), {
       params: { barcode: '0000000000000' },
     });
     expect(res.status).toBe(404);
@@ -102,7 +114,7 @@ describe('/api/products/:barcode', () => {
   it('returns 404 when removing a barcode that belongs to a different store, leaving it intact', async () => {
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     await createProduct(otherStoreId);
-    const res = await DELETE(storeRequest('http://localhost', storeId, { method: 'DELETE' }), {
+    const res = await DELETE(unlockedRequest('http://localhost', storeId, { method: 'DELETE' }), {
       params: { barcode: '7891234000011' },
     });
     expect(res.status).toBe(404);

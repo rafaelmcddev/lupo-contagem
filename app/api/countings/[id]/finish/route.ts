@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { countings } from '@/db/schema';
+import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
 
   const [row] = await db
     .update(countings)

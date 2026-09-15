@@ -3,6 +3,7 @@ import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { skus } from '@/db/schema';
 import { getRequireSku } from '@/lib/getRequireSku';
+import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,9 @@ const MAX_PAGE_SIZE = 100;
 
 export async function GET(req: Request) {
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
   const url = new URL(req.url);
   const q = (url.searchParams.get('q') ?? '').trim();
   const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
@@ -37,6 +41,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
   let body: any;
   try {
     body = await req.json();

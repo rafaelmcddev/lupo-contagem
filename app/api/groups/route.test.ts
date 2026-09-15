@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { GET, POST } from './route';
 
 let storeId: number;
@@ -11,12 +12,19 @@ beforeEach(async () => {
 });
 
 function postReq(body: unknown) {
-  return storeRequest('http://localhost/api/groups', storeId, { method: 'POST', body: JSON.stringify(body) });
+  return unlockedRequest('http://localhost/api/groups', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 describe('/api/groups', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const getRes = await GET(storeRequest('http://localhost/api/groups', storeId));
+    expect(getRes.status).toBe(401);
+    const postRes = await POST(storeRequest('http://localhost/api/groups', storeId, { method: 'POST', body: JSON.stringify({ prefix: '1', name: 'X' }) }));
+    expect(postRes.status).toBe(401);
+  });
+
   it('starts empty', async () => {
-    const res = await GET(storeRequest('http://localhost/api/groups', storeId));
+    const res = await GET(unlockedRequest('http://localhost/api/groups', storeId));
     const data = await res.json();
     expect(data.groups).toEqual([]);
   });
@@ -38,7 +46,7 @@ describe('/api/groups', () => {
     await POST(postReq({ prefix: '789123', name: 'A' }));
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     const res = await POST(
-      storeRequest('http://localhost/api/groups', otherStoreId, {
+      unlockedRequest('http://localhost/api/groups', otherStoreId, {
         method: 'POST',
         body: JSON.stringify({ prefix: '789123', name: 'B' }),
       }),
@@ -50,13 +58,13 @@ describe('/api/groups', () => {
     await POST(postReq({ prefix: '111', name: 'Loja atual' }));
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     await POST(
-      storeRequest('http://localhost/api/groups', otherStoreId, {
+      unlockedRequest('http://localhost/api/groups', otherStoreId, {
         method: 'POST',
         body: JSON.stringify({ prefix: '222', name: 'Outra loja' }),
       }),
     );
 
-    const res = await GET(storeRequest('http://localhost/api/groups', storeId));
+    const res = await GET(unlockedRequest('http://localhost/api/groups', storeId));
     const data = await res.json();
     expect(data.groups).toHaveLength(1);
     expect(data.groups[0].name).toBe('Loja atual');
@@ -68,7 +76,7 @@ describe('/api/groups', () => {
   });
 
   it('returns 400 invalid_json when the body is malformed', async () => {
-    const res = await POST(storeRequest('http://localhost/api/groups', storeId, { method: 'POST', body: '{not json' }));
+    const res = await POST(unlockedRequest('http://localhost/api/groups', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('invalid_json');

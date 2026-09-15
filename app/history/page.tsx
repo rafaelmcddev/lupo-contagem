@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
+import { PinGate } from '@/components/PinGate';
 
 interface Counting {
   id: number;
@@ -15,6 +16,16 @@ interface Counting {
 const PAGE_SIZE = 10;
 
 export default function HistoryPage() {
+  return (
+    <PinGate>
+      <HistoryContent />
+    </PinGate>
+  );
+}
+
+// Split out so this content — and its data-loading effect — only mounts
+// once PinGate has actually unlocked (same reasoning as RecompensasContent).
+function HistoryContent() {
   const [countings, setCountings] = useState<Counting[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

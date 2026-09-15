@@ -6,6 +6,7 @@ import { PageHeading } from '@/components/ui/PageHeading';
 import { Pagination } from '@/components/ui/Pagination';
 import { Table } from '@/components/ui/Table';
 import { CheckIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icons';
+import { PinGate } from '@/components/PinGate';
 
 interface Product {
   barcode: string;
@@ -17,6 +18,16 @@ const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function ProductsPage() {
+  return (
+    <PinGate>
+      <ProductsContent />
+    </PinGate>
+  );
+}
+
+// Split out so this content — and its data-loading effect — only mounts
+// once PinGate has actually unlocked (same reasoning as RecompensasContent).
+function ProductsContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

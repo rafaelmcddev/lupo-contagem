@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { POST } from './route';
 
 let storeId: number;
@@ -13,10 +14,15 @@ beforeEach(async () => {
 });
 
 function req() {
-  return storeRequest('http://localhost', storeId, { method: 'POST' });
+  return unlockedRequest('http://localhost', storeId, { method: 'POST' });
 }
 
 describe('/api/countings/:id/finish', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST' }), { params: { id: '1' } });
+    expect(res.status).toBe(401);
+  });
+
   it('marks the counting as finished', async () => {
     const [counting] = await db.insert(countings).values({ storeId, name: 'Teste', prefixLengthUsed: 7, status: 'active' }).returning();
     const res = await POST(req(), { params: { id: String(counting.id) } });

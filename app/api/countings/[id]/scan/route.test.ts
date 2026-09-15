@@ -4,6 +4,7 @@ import { db } from '@/db/client';
 import { countings } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { POST } from './route';
 
 let storeId: number;
@@ -19,10 +20,17 @@ async function createActiveCounting(overrideStoreId = storeId) {
 }
 
 function postReq(body: unknown) {
-  return storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
+  return unlockedRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 describe('/api/countings/:id/scan', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: JSON.stringify({ barcode: '1' }) }), {
+      params: { id: '1' },
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('returns 422 sku_required for a barcode with no linked SKU, recording nothing', async () => {
     const counting = await createActiveCounting();
     const res = await POST(postReq({ barcode: '7891234000011' }), { params: { id: String(counting.id) } });
@@ -72,7 +80,7 @@ describe('/api/countings/:id/scan', () => {
 
   it('returns 400 invalid_json when the body is malformed', async () => {
     const counting = await createActiveCounting();
-    const res = await POST(storeRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }), {
+    const res = await POST(unlockedRequest('http://localhost', storeId, { method: 'POST', body: '{not json' }), {
       params: { id: String(counting.id) },
     });
     expect(res.status).toBe(400);

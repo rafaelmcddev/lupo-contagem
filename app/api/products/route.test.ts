@@ -4,6 +4,7 @@ import { settings } from '@/db/schema';
 import { REQUIRE_SKU_KEY } from '@/lib/getRequireSku';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { GET, POST } from './route';
 
 let storeId: number;
@@ -14,14 +15,23 @@ beforeEach(async () => {
 });
 
 function getReq(query = '') {
-  return storeRequest(`http://localhost/api/products${query}`, storeId);
+  return unlockedRequest(`http://localhost/api/products${query}`, storeId);
 }
 
 function postReq(body: unknown) {
-  return storeRequest('http://localhost/api/products', storeId, { method: 'POST', body: JSON.stringify(body) });
+  return unlockedRequest('http://localhost/api/products', storeId, { method: 'POST', body: JSON.stringify(body) });
 }
 
 describe('/api/products', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const getRes = await GET(storeRequest('http://localhost/api/products', storeId));
+    expect(getRes.status).toBe(401);
+    const postRes = await POST(
+      storeRequest('http://localhost/api/products', storeId, { method: 'POST', body: JSON.stringify({ barcode: '1', sku: 'X', name: 'X' }) }),
+    );
+    expect(postRes.status).toBe(401);
+  });
+
   it('starts empty', async () => {
     const res = await GET(getReq());
     const data = await res.json();
@@ -48,7 +58,7 @@ describe('/api/products', () => {
     await POST(postReq({ barcode: '1', sku: 'A', name: 'Loja atual' }));
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     await POST(
-      storeRequest('http://localhost/api/products', otherStoreId, {
+      unlockedRequest('http://localhost/api/products', otherStoreId, {
         method: 'POST',
         body: JSON.stringify({ barcode: '1', sku: 'B', name: 'Outra loja' }),
       }),
@@ -101,7 +111,7 @@ describe('/api/products', () => {
     await POST(postReq({ barcode: '1', sku: 'A', name: 'A' }));
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     const res = await POST(
-      storeRequest('http://localhost/api/products', otherStoreId, {
+      unlockedRequest('http://localhost/api/products', otherStoreId, {
         method: 'POST',
         body: JSON.stringify({ barcode: '1', sku: 'B', name: 'B' }),
       }),
@@ -130,7 +140,7 @@ describe('/api/products', () => {
   });
 
   it('rejects malformed JSON', async () => {
-    const res = await POST(storeRequest('http://localhost/api/products', storeId, { method: 'POST', body: '{not json' }));
+    const res = await POST(unlockedRequest('http://localhost/api/products', storeId, { method: 'POST', body: '{not json' }));
     expect(res.status).toBe(400);
   });
 });

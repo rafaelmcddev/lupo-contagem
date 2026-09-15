@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { groups } from '@/db/schema';
+import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
   let body: any;
   try {
     body = await req.json();
@@ -39,6 +43,9 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
   const [row] = await db
     .delete(groups)
     .where(and(eq(groups.id, id), eq(groups.storeId, storeId)))

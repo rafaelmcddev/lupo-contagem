@@ -1,9 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ProductsPage from './page';
+
+beforeEach(() => {
+  document.cookie = 'store_id=1; path=/';
+  document.cookie = 'sale_pin_ok=1; path=/';
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  document.cookie = 'store_id=; path=/; max-age=0';
+  document.cookie = 'sale_pin_ok=; path=/; max-age=0';
 });
 
 const oneProduct = { barcode: '7891234000011', sku: 'CUECA-SLIP-P', name: 'Cueca Slip Preta P' };

@@ -5,6 +5,7 @@ import { boxes, countings, groups, invoiceItems, scans } from '@/db/schema';
 import { recordScan } from '@/lib/scanCounting';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
+import { unlockedRequest } from '@/tests/testSalePin';
 import { DELETE, GET } from './route';
 
 let storeId: number;
@@ -15,10 +16,15 @@ beforeEach(async () => {
 });
 
 function req() {
-  return storeRequest('http://localhost', storeId);
+  return unlockedRequest('http://localhost', storeId);
 }
 
 describe('/api/countings/:id', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await GET(storeRequest('http://localhost', storeId), { params: { id: '1' } });
+    expect(res.status).toBe(401);
+  });
+
   it('returns 404 for a counting that does not exist', async () => {
     const res = await GET(req(), { params: { id: '999999' } });
     expect(res.status).toBe(404);
@@ -132,6 +138,11 @@ describe('/api/countings/:id', () => {
 });
 
 describe('DELETE /api/countings/:id', () => {
+  it('returns 401 when the PIN is not unlocked', async () => {
+    const res = await DELETE(storeRequest('http://localhost', storeId), { params: { id: '1' } });
+    expect(res.status).toBe(401);
+  });
+
   it('returns 404 for a counting that does not exist', async () => {
     const res = await DELETE(req(), { params: { id: '999999' } });
     expect(res.status).toBe(404);

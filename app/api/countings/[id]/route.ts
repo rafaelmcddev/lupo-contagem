@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { boxes, countings, groups, invoiceItems, scans } from '@/db/schema';
 import { resolveGroupName } from '@/lib/groupMatch';
+import { isSalePinUnlocked } from '@/lib/salePin';
 import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
   const countingRows = await db
     .select()
     .from(countings)
@@ -95,6 +99,9 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ error: 'counting_not_found' }, { status: 404 });
   }
   const storeId = getStoreIdFromRequest(req);
+  if (!isSalePinUnlocked(req, storeId)) {
+    return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
+  }
 
   const countingRows = await db
     .select()
