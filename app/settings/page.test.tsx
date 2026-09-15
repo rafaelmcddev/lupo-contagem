@@ -29,19 +29,19 @@ describe('SettingsPage', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('loads and displays the current settings, including the cashback fields', async () => {
+  it('loads and displays the current cashback settings, with no grouping fields', async () => {
     unlock();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => settingsResponse }));
     render(<SettingsPage />);
-    await waitFor(() => expect(screen.getByLabelText(/dígitos/)).toHaveValue(7));
-    expect(screen.getByLabelText(/Exigir SKU/)).toBeChecked();
-    expect(screen.getByLabelText(/Percentual de cashback/)).toHaveValue(5);
+    await waitFor(() => expect(screen.getByLabelText(/Percentual de cashback/)).toHaveValue(5));
     expect(screen.getByLabelText(/Prazo de validade/)).toHaveValue(30);
     expect(screen.getByLabelText(/Cashback cobre no máximo/)).toHaveValue(20);
     expect(screen.getByLabelText(/Mensagem enviada pelo WhatsApp/)).toHaveValue('Oi %nome%, de %loja%!');
+    expect(screen.queryByLabelText(/dígitos/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Exigir SKU/)).not.toBeInTheDocument();
   });
 
-  it('saves the updated settings, including the cashback fields', async () => {
+  it('saves the updated cashback settings, preserving the grouping settings unchanged', async () => {
     unlock();
     const fetchMock = vi.fn().mockResolvedValue({ json: async () => settingsResponse });
     vi.stubGlobal('fetch', fetchMock);
@@ -49,8 +49,6 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText(/dígitos/), { target: { value: '9' } });
-    fireEvent.click(screen.getByLabelText(/Exigir SKU/));
     fireEvent.change(screen.getByLabelText(/Percentual de cashback/), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText(/Prazo de validade/), { target: { value: '45' } });
     fireEvent.change(screen.getByLabelText(/Cashback cobre no máximo/), { target: { value: '25' } });
@@ -63,8 +61,8 @@ describe('SettingsPage', () => {
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify({
-            prefixLength: 9,
-            requireSku: false,
+            prefixLength: 7,
+            requireSku: true,
             cashbackPercent: 10,
             cashbackExpiryDays: 45,
             cashbackMaxUsagePercent: 25,

@@ -60,36 +60,6 @@ function SettingsContent() {
     <main className="mx-auto max-w-xl p-4 sm:p-8">
       <PageHeading>Configurações</PageHeading>
       <form onSubmit={save} className="flex flex-col gap-4">
-        <label className="text-lg font-medium" htmlFor="prefixLength">
-          Quantidade de dígitos que definem um grupo
-        </label>
-        <input
-          id="prefixLength"
-          type="number"
-          min={1}
-          max={20}
-          value={prefixLength}
-          onChange={(e) => {
-            setPrefixLength(e.target.value === '' ? '' : Number(e.target.value));
-            setSaved(false);
-          }}
-          className="rounded-lg border border-gray-300 px-3 py-3 text-base focus:border-accent focus:ring-2 focus:ring-accent/40 focus:outline-none"
-        />
-        <label className="flex items-center gap-3 text-lg font-medium" htmlFor="requireSku">
-          <input
-            id="requireSku"
-            type="checkbox"
-            checked={requireSku}
-            onChange={(e) => {
-              setRequireSku(e.target.checked);
-              setSaved(false);
-            }}
-            className="h-6 w-6"
-          />
-          Exigir SKU ao bipar
-        </label>
-
-        <hr className="my-2 border-gray-200" />
         <p className="text-sm text-ink/60">Programa de cashback — válido só para a loja atual</p>
 
         <label className="text-lg font-medium" htmlFor="cashbackPercent">
