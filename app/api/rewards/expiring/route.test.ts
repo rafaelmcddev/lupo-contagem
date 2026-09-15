@@ -1,7 +1,9 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { customers, sales } from '@/db/schema';
+import { customers, sales, stores } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
+import { calculateExpiresAt } from '@/lib/rewards';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { unlockedRequest } from '@/tests/testSalePin';
@@ -28,6 +30,16 @@ function getReq(query = '') {
 }
 
 describe('GET /api/rewards/expiring', () => {
+  it('returns a totalizer across every matching sale, not just the current page', async () => {
+    await createSale(25, 10000);
+    await createSale(28, 20000);
+    const res = await GET(getReq('?pageSize=1'));
+    const data = await res.json();
+    expect(data.items).toHaveLength(1); // page is limited, but the totals are not
+    expect(data.totalValueCents).toBe(30000);
+    expect(data.totalRewardCents).toBe(1500);
+  });
+
   it('returns 401 when the PIN is not unlocked', async () => {
     const res = await GET(storeRequest('http://localhost', storeId));
     expect(res.status).toBe(401);
@@ -53,7 +65,18 @@ describe('GET /api/rewards/expiring', () => {
     const data = await res.json();
     const item = data.items.find((i: any) => i.id === sale.id);
     expect(item.rewardCents).toBe(500);
-    expect(item.expiresAt).toBe(addDaysToIsoDate(sale.saleDate, 30));
+    expect(item.expiresAt).toBe(calculateExpiresAt(sale.saleDate, 30));
+  });
+
+  it('uses the store-specific percent and expiry when configured', async () => {
+    await db.update(stores).set({ cashbackPercent: 10, cashbackExpiryDays: 45 }).where(eq(stores.id, storeId));
+    // 40 days ago + 45-day expiry lands 5 days from now, inside the default report window.
+    const sale = await createSale(40, 10000);
+    const res = await GET(getReq());
+    const data = await res.json();
+    const item = data.items.find((i: any) => i.id === sale.id);
+    expect(item.rewardCents).toBe(1000);
+    expect(item.expiresAt).toBe(calculateExpiresAt(sale.saleDate, 45));
   });
 
   it('filters by cashbackUsed=false, excluding used sales', async () => {
@@ -77,8 +100,8 @@ describe('GET /api/rewards/expiring', () => {
   });
 
   it('respects an explicit from/to expiry-date range', async () => {
-    const farOut = await createSale(0); // expires in 30 days
-    const res = await GET(getReq(`?from=${addDaysToIsoDate(todayIso(), 29)}&to=${addDaysToIsoDate(todayIso(), 31)}`));
+    const farOut = await createSale(0); // expires in 33 days (30 configured + 3-day usable-after delay)
+    const res = await GET(getReq(`?from=${addDaysToIsoDate(todayIso(), 32)}&to=${addDaysToIsoDate(todayIso(), 34)}`));
     const data = await res.json();
     expect(data.items.map((i: any) => i.id)).toContain(farOut.id);
   });
@@ -86,7 +109,7 @@ describe('GET /api/rewards/expiring', () => {
   it('paginates and sorts by sale date descending', async () => {
     const older = await createSale(25, 10000);
     await new Promise((r) => setTimeout(r, 5));
-    const newer = await createSale(20, 10000);
+    const newer = await createSale(23, 10000); // still expires within the default 10-day window
     const res = await GET(getReq('?pageSize=1&page=1'));
     const data = await res.json();
     expect(data.items).toHaveLength(1);

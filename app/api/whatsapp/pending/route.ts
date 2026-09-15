@@ -2,31 +2,37 @@ import { NextResponse } from 'next/server';
 import { and, asc, eq, notExists, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales, whatsappSends } from '@/db/schema';
-import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
+import { CASHBACK_USABLE_AFTER_DAYS, calculateExpiresAt, calculateMinPurchaseToUseCents, calculateRewardCents } from '@/lib/rewards';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR } from '@/lib/dates';
 import { isSalePinUnlocked } from '@/lib/salePin';
+import { getStoreCashbackSettings, type StoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
-import { buildRewardMessage, buildWhatsAppWebUrl, isWhatsAppApiConfigured } from '@/lib/whatsapp';
+import { buildRewardMessage, buildWhatsAppUrl, isWhatsAppApiConfigured } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
 type PendingRow = { saleId: number; customerName: string; customerPhone: string; saleDate: string; valueCents: number };
 
-function toItem(row: PendingRow, type: 'purchase' | 'reminder') {
-  const rewardCents = calculateRewardCents(row.valueCents);
-  const expiresAt = calculateExpiresAt(row.saleDate);
+function toItem(row: PendingRow, type: 'purchase' | 'reminder', storeSettings: StoreCashbackSettings) {
+  const rewardCents = calculateRewardCents(row.valueCents, storeSettings.percent);
+  const expiresAt = calculateExpiresAt(row.saleDate, storeSettings.expiryDays);
+  const minPurchaseCents = calculateMinPurchaseToUseCents(rewardCents, storeSettings.maxUsagePercent);
   const message = buildRewardMessage({
+    template: storeSettings.messageTemplate,
+    storeName: storeSettings.name,
     customerName: row.customerName,
     saleDateBR: formatDateBR(row.saleDate),
     rewardBRL: formatCentsAsBRL(rewardCents),
     expiresAtBR: formatDateBR(expiresAt),
+    maxUsagePercentText: `${storeSettings.maxUsagePercent}%`,
+    minPurchaseBRL: formatCentsAsBRL(minPurchaseCents),
   });
   return {
     saleId: row.saleId,
     type,
     customerName: row.customerName,
-    whatsappUrl: buildWhatsAppWebUrl(row.customerPhone, message),
+    whatsappUrl: buildWhatsAppUrl(row.customerPhone, message),
   };
 }
 
@@ -35,6 +41,10 @@ export async function GET(req: Request) {
   if (!isSalePinUnlocked(req, storeId)) {
     return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
   }
+  const storeSettings = await getStoreCashbackSettings(db, storeId);
+  // Cashback isn't usable right after the purchase — see lib/rewards.ts's
+  // calculateExpiresAt for the same rule applied here in SQL.
+  const trueExpiryDays = storeSettings.expiryDays + CASHBACK_USABLE_AFTER_DAYS;
 
   const selectColumns = {
     saleId: sales.id,
@@ -51,7 +61,7 @@ export async function GET(req: Request) {
     .where(
       and(
         eq(sales.storeId, storeId),
-        sql`${sales.saleDate} + interval '30 days' > current_date`,
+        sql`${sales.saleDate} + make_interval(days => ${trueExpiryDays}) > current_date`,
         notExists(
           db
             .select()
@@ -73,8 +83,9 @@ export async function GET(req: Request) {
           and(
             eq(sales.storeId, storeId),
             eq(sales.cashbackUsed, false),
-            sql`${sales.saleDate} + interval '25 days' <= current_date`,
-            sql`${sales.saleDate} + interval '30 days' > current_date`,
+            // The reminder fires 5 days before whatever this store's expiry is.
+            sql`${sales.saleDate} + make_interval(days => ${trueExpiryDays - 5}) <= current_date`,
+            sql`${sales.saleDate} + make_interval(days => ${trueExpiryDays}) > current_date`,
             // Unlike the cron route (which only ever runs once the Meta API is
             // configured, and deliberately still sends the "official"
             // automatic reminder even after an earlier manual one), this
@@ -94,8 +105,8 @@ export async function GET(req: Request) {
         .limit(50);
 
   const pending = [
-    ...pendingPurchases.map((r) => toItem(r, 'purchase')),
-    ...pendingReminders.map((r) => toItem(r, 'reminder')),
+    ...pendingPurchases.map((r) => toItem(r, 'purchase', storeSettings)),
+    ...pendingReminders.map((r) => toItem(r, 'reminder', storeSettings)),
   ];
 
   return NextResponse.json({ pending });

@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
-import { customers, sales, whatsappSends } from '@/db/schema';
+import { customers, sales, stores, whatsappSends } from '@/db/schema';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR } from '@/lib/dates';
-import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
+import {
+  CASHBACK_USABLE_AFTER_DAYS,
+  DEFAULT_CASHBACK_EXPIRY_DAYS,
+  DEFAULT_CASHBACK_PERCENT,
+  calculateExpiresAt,
+  calculateRewardCents,
+} from '@/lib/rewards';
 import { isWhatsAppApiConfigured, sendViaMetaApi } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +28,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ sent: 0, skipped: 'not_configured' });
   }
 
+  // Sales span every store in one sweep, and each store may have its own
+  // expiry window, so the "due" cutoff is computed per-row via a join
+  // instead of a single global interval.
   const dueRows = await db
     .select({
       saleId: sales.id,
@@ -30,22 +39,28 @@ export async function GET(req: Request) {
       valueCents: sales.valueCents,
       customerName: customers.name,
       customerPhone: customers.phone,
+      cashbackPercent: stores.cashbackPercent,
+      cashbackExpiryDays: stores.cashbackExpiryDays,
     })
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
+    .innerJoin(stores, eq(sales.storeId, stores.id))
     .where(
       and(
         eq(sales.cashbackUsed, false),
-        sql`${sales.saleDate} + interval '25 days' <= current_date`,
-        sql`${sales.saleDate} + interval '30 days' > current_date`,
+        // Cashback isn't usable right after the purchase (see lib/rewards.ts's
+        // calculateExpiresAt), so the true expiry is the configured days plus
+        // that delay. The reminder fires 5 days before that.
+        sql`${sales.saleDate} + make_interval(days => coalesce(${stores.cashbackExpiryDays}, ${DEFAULT_CASHBACK_EXPIRY_DAYS}) + ${CASHBACK_USABLE_AFTER_DAYS} - 5) <= current_date`,
+        sql`${sales.saleDate} + make_interval(days => coalesce(${stores.cashbackExpiryDays}, ${DEFAULT_CASHBACK_EXPIRY_DAYS}) + ${CASHBACK_USABLE_AFTER_DAYS}) > current_date`,
         sql`not exists (select 1 from whatsapp_sends ws where ws.sale_id = ${sales.id} and ws.type = 'reminder' and ws.trigger != 'manual')`,
       ),
     );
 
   let sentCount = 0;
   for (const row of dueRows) {
-    const rewardCents = calculateRewardCents(row.valueCents);
-    const expiresAt = calculateExpiresAt(row.saleDate);
+    const rewardCents = calculateRewardCents(row.valueCents, row.cashbackPercent ?? DEFAULT_CASHBACK_PERCENT);
+    const expiresAt = calculateExpiresAt(row.saleDate, row.cashbackExpiryDays ?? DEFAULT_CASHBACK_EXPIRY_DAYS);
     const result = await sendViaMetaApi(row.customerPhone, [
       row.customerName,
       formatDateBR(row.saleDate),

@@ -6,6 +6,7 @@ import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR } from '@/lib/dates';
 import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
 import { isSalePinUnlocked } from '@/lib/salePin';
+import { getStoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
 import { isWhatsAppApiConfigured, sendViaMetaApi } from '@/lib/whatsapp';
 
@@ -94,8 +95,9 @@ export async function POST(req: Request) {
 
   if (isWhatsAppApiConfigured()) {
     try {
-      const rewardCents = calculateRewardCents(valueCents);
-      const expiresAt = calculateExpiresAt(saleDate);
+      const { percent, expiryDays } = await getStoreCashbackSettings(db, storeId);
+      const rewardCents = calculateRewardCents(valueCents, percent);
+      const expiresAt = calculateExpiresAt(saleDate, expiryDays);
       const result = await sendViaMetaApi(customer.phone, [
         customer.name,
         formatDateBR(saleDate),

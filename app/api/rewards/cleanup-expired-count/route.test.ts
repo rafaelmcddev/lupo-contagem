@@ -33,13 +33,13 @@ describe('GET /api/rewards/cleanup-expired-count', () => {
     expect(res.status).toBe(401);
   });
 
-  it('counts the sales that expired 30+ days ago', async () => {
-    await createSale(31, true);
+  it('counts only the expired sales whose cashback was never used', async () => {
+    await createSale(31, true); // expired but used — must not count
     await createSale(40, false);
     await createSale(20);
     const res = await GET(getReq());
     const data = await res.json();
-    expect(data.count).toBe(2);
+    expect(data.count).toBe(1);
   });
 
   it('only counts sales from the requesting store', async () => {

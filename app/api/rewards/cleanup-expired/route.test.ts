@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { cashbackCleanupLog, customers, sales } from '@/db/schema';
+import { cashbackCleanupLog, customers, sales, stores } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
@@ -33,15 +34,22 @@ describe('POST /api/rewards/cleanup-expired', () => {
     expect(res.status).toBe(401);
   });
 
-  it('deletes a sale that expired 30+ days ago, regardless of cashback_used', async () => {
-    const expiredUsed = await createSale(31, true);
+  it('deletes an expired sale whose cashback was never used', async () => {
     const expiredUnused = await createSale(35, false);
     const res = await POST(postReq());
     const data = await res.json();
-    expect(data.rowsDeleted).toBe(2);
+    expect(data.rowsDeleted).toBe(1);
     const remaining = await db.select().from(sales);
-    expect(remaining.map((s) => s.id)).not.toContain(expiredUsed.id);
     expect(remaining.map((s) => s.id)).not.toContain(expiredUnused.id);
+  });
+
+  it('never deletes a sale whose cashback was used, even long after it expired', async () => {
+    const expiredUsed = await createSale(31, true);
+    const res = await POST(postReq());
+    const data = await res.json();
+    expect(data.rowsDeleted).toBe(0);
+    const remaining = await db.select().from(sales);
+    expect(remaining.map((s) => s.id)).toContain(expiredUsed.id);
   });
 
   it('leaves a sale that has not expired yet', async () => {
@@ -64,7 +72,7 @@ describe('POST /api/rewards/cleanup-expired', () => {
   });
 
   it('logs a cleanup run with the exact count deleted', async () => {
-    await createSale(31);
+    await createSale(33);
     await createSale(40);
     await POST(postReq());
     const [log] = await db.select().from(cashbackCleanupLog);
@@ -78,12 +86,22 @@ describe('POST /api/rewards/cleanup-expired', () => {
     expect(log.rowsDeleted).toBe(0);
   });
 
-  it('deletes a sale that hit exactly 30 days — the boundary is inclusive', async () => {
-    const exactlyThirty = await createSale(30);
+  it('uses the store-specific expiry (not the 30-day default) to decide what is expired', async () => {
+    await db.update(stores).set({ cashbackExpiryDays: 60 }).where(eq(stores.id, storeId));
+    const stillValid = await createSale(35); // past the 30-day default, but not this store's 60-day expiry
+    const res = await POST(postReq());
+    const data = await res.json();
+    expect(data.rowsDeleted).toBe(0);
+    const remaining = await db.select().from(sales);
+    expect(remaining.map((s) => s.id)).toContain(stillValid.id);
+  });
+
+  it('deletes a sale that hit exactly the true expiry boundary (33 days: 30 configured + 3-day delay) — inclusive', async () => {
+    const exactlyExpired = await createSale(33);
     const res = await POST(postReq());
     const data = await res.json();
     expect(data.rowsDeleted).toBe(1);
     const remaining = await db.select().from(sales);
-    expect(remaining.map((s) => s.id)).not.toContain(exactlyThirty.id);
+    expect(remaining.map((s) => s.id)).not.toContain(exactlyExpired.id);
   });
 });

@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales, whatsappSends } from '@/db/schema';
-import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
+import { calculateExpiresAt, calculateMinPurchaseToUseCents, calculateRewardCents } from '@/lib/rewards';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR } from '@/lib/dates';
 import { isSalePinUnlocked } from '@/lib/salePin';
+import { getStoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
-import { buildRewardMessage, buildWhatsAppWebUrl } from '@/lib/whatsapp';
+import { buildRewardMessage, buildWhatsAppUrl } from '@/lib/whatsapp';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,15 +39,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  const rewardCents = calculateRewardCents(sale.valueCents);
-  const expiresAt = calculateExpiresAt(sale.saleDate);
+  const { name: storeName, percent, expiryDays, maxUsagePercent, messageTemplate } = await getStoreCashbackSettings(db, storeId);
+  const rewardCents = calculateRewardCents(sale.valueCents, percent);
+  const expiresAt = calculateExpiresAt(sale.saleDate, expiryDays);
+  const minPurchaseCents = calculateMinPurchaseToUseCents(rewardCents, maxUsagePercent);
   const message = buildRewardMessage({
+    template: messageTemplate,
+    storeName,
     customerName: sale.customerName,
     saleDateBR: formatDateBR(sale.saleDate),
     rewardBRL: formatCentsAsBRL(rewardCents),
     expiresAtBR: formatDateBR(expiresAt),
+    maxUsagePercentText: `${maxUsagePercent}%`,
+    minPurchaseBRL: formatCentsAsBRL(minPurchaseCents),
   });
-  const whatsappUrl = buildWhatsAppWebUrl(sale.customerPhone, message);
+  const whatsappUrl = buildWhatsAppUrl(sale.customerPhone, message);
 
   await db.insert(whatsappSends).values({
     storeId,

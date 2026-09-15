@@ -1,4 +1,4 @@
-import { boolean, date, index, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, date, doublePrecision, index, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const countingStatus = pgEnum('counting_status', ['active', 'finished']);
 export const countingSource = pgEnum('counting_source', ['manual', 'xml']);
@@ -9,6 +9,15 @@ export const stores = pgTable('stores', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
+  // Null means "use the global default" (see lib/rewards.ts / lib/whatsapp.ts) —
+  // only stores that opt out of the default carry an explicit value here.
+  cashbackPercent: doublePrecision('cashback_percent'),
+  cashbackExpiryDays: integer('cashback_expiry_days'),
+  whatsappMessageTemplate: text('whatsapp_message_template'),
+  // A redemption can never cover more than this % of the NEW purchase it's
+  // applied to — protects margin against a purchase paid almost entirely
+  // with old credit. Independent of cashbackPercent (the earn rate).
+  cashbackMaxUsagePercent: doublePrecision('cashback_max_usage_percent'),
 });
 
 export const countings = pgTable('countings', {

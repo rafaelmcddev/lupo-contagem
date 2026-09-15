@@ -1,12 +1,17 @@
-const REWARD_MESSAGE_TEMPLATE = `Olá, %nome%! 👋
+// Default text for a store that hasn't customized its own message (see the
+// per-store `whatsappMessageTemplate` column). %loja% is filled in with that
+// store's name at send time, so the text stays correct even if renamed.
+export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATE = `Olá, %nome%! 👋
 
-Agradecemos por escolher a loja Up! 💙
+Agradecemos por escolher a %loja%! 💙
 
 Temos uma boa notícia para você! 🎉
 
 Sua compra realizada no dia %dia% gerou %cashback% de crédito para desconto em sua próxima compra.
 
-📅 Você pode utilizar esse valor até: %data_limite%
+📅 Você pode utilizar esse valor a partir de amanhã e até: %data_limite%
+
+⚠️ Esse crédito pode cobrir até %limite_uso% do valor da sua próxima compra — então, para usar o valor todo, ela precisa ser de pelo menos %compra_minima%.
 
 É só visitar nossa loja física e aproveitar o seu crédito para pagar menos na sua próxima compra! 😊
 
@@ -21,15 +26,30 @@ export function isWhatsAppApiConfigured(): boolean {
 }
 
 export function buildRewardMessage(params: {
+  template: string;
+  storeName: string;
   customerName: string;
   saleDateBR: string;
   rewardBRL: string;
   expiresAtBR: string;
+  maxUsagePercentText: string;
+  minPurchaseBRL: string;
 }): string {
-  return REWARD_MESSAGE_TEMPLATE.replace('%nome%', params.customerName)
-    .replace('%dia%', params.saleDateBR)
-    .replace('%cashback%', params.rewardBRL)
-    .replace('%data_limite%', params.expiresAtBR);
+  return params.template
+    .split('%loja%')
+    .join(params.storeName)
+    .split('%nome%')
+    .join(params.customerName)
+    .split('%dia%')
+    .join(params.saleDateBR)
+    .split('%cashback%')
+    .join(params.rewardBRL)
+    .split('%data_limite%')
+    .join(params.expiresAtBR)
+    .split('%limite_uso%')
+    .join(params.maxUsagePercentText)
+    .split('%compra_minima%')
+    .join(params.minPurchaseBRL);
 }
 
 function toE164Digits(phone: string): string {
@@ -37,8 +57,10 @@ function toE164Digits(phone: string): string {
   return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
-export function buildWhatsAppWebUrl(phone: string, text: string): string {
-  return `https://web.whatsapp.com/send?phone=${toE164Digits(phone)}&text=${encodeURIComponent(text)}`;
+// wa.me is WhatsApp's universal link: it opens the native app on a phone
+// and falls back to WhatsApp Web on a desktop browser, from the same URL.
+export function buildWhatsAppUrl(phone: string, text: string): string {
+  return `https://wa.me/${toE164Digits(phone)}?text=${encodeURIComponent(text)}`;
 }
 
 export async function sendViaMetaApi(

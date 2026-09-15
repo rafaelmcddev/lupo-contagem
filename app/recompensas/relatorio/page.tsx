@@ -19,6 +19,7 @@ interface ExpiringItem {
   rewardCents: number;
   cashbackUsed: boolean;
   expiresAt: string;
+  minPurchaseCents: number;
 }
 
 interface CleanupLogEntry {
@@ -40,6 +41,8 @@ export default function RelatorioPage() {
 function RelatorioContent() {
   const [items, setItems] = useState<ExpiringItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalValueCents, setTotalValueCents] = useState(0);
+  const [totalRewardCents, setTotalRewardCents] = useState(0);
   const [page, setPage] = useState(1);
   const [cashbackUsed, setCashbackUsed] = useState<'false' | 'true' | 'all'>('false');
   const [from, setFrom] = useState(todayIso());
@@ -55,6 +58,8 @@ function RelatorioContent() {
     const data = await res.json();
     setItems(data.items ?? []);
     setTotal(data.total ?? 0);
+    setTotalValueCents(data.totalValueCents ?? 0);
+    setTotalRewardCents(data.totalRewardCents ?? 0);
   }, [page, from, to, cashbackUsed]);
 
   const loadCleanupLog = useCallback(async () => {
@@ -84,7 +89,7 @@ function RelatorioContent() {
   async function runCleanup() {
     if (
       !window.confirm(
-        `Isso vai apagar permanentemente ${cleanupCount} venda(s) com cashback já vencido (mais de 30 dias). Essa ação não pode ser desfeita. Confirmar?`,
+        `Isso vai apagar permanentemente ${cleanupCount} venda(s) com cashback já vencido e nunca usado. Essa ação não pode ser desfeita. Confirmar?`,
       )
     ) {
       return;
@@ -159,23 +164,37 @@ function RelatorioContent() {
           { header: 'Data da compra', render: (i: ExpiringItem) => formatDateBR(i.saleDate) },
           { header: 'Cliente', render: (i: ExpiringItem) => i.customerName },
           { header: 'Valor', render: (i: ExpiringItem) => formatCentsAsBRL(i.valueCents) },
-          { header: 'Recompensa', render: (i: ExpiringItem) => formatCentsAsBRL(i.rewardCents) },
+          {
+            header: 'Recompensa',
+            render: (i: ExpiringItem) => (
+              <span className="flex flex-col">
+                <span>{formatCentsAsBRL(i.rewardCents)}</span>
+                <span className="text-xs text-gray-500">mín. compra {formatCentsAsBRL(i.minPurchaseCents)}</span>
+              </span>
+            ),
+          },
           { header: 'Vence em', render: (i: ExpiringItem) => formatDateBR(i.expiresAt) },
           { header: 'Cashback usado', render: (i: ExpiringItem) => (i.cashbackUsed ? 'Sim' : 'Não') },
         ]}
         rows={items}
         emptyMessage="Nenhuma recompensa a vencer nesse período."
       />
+      {total > 0 && (
+        <p className="mt-3 text-sm font-medium text-gray-700">
+          Total do período: {total} venda(s), {formatCentsAsBRL(totalValueCents)} em valor,{' '}
+          <span className="font-semibold text-accent">{formatCentsAsBRL(totalRewardCents)}</span> em cashback.
+        </p>
+      )}
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
       <div className="mt-10 rounded-2xl border border-gray-200 p-5">
         <h2 className="mb-2 text-xl font-bold">Limpeza de vendas expiradas</h2>
         <p className="mb-4 text-sm text-gray-600">
-          Remove permanentemente as vendas cujo cashback já venceu (mais de 30 dias), para não deixar o banco de
-          dados grande demais.
+          Remove permanentemente as vendas cujo cashback venceu sem nunca ter sido usado, para não deixar o banco de
+          dados grande demais. Vendas com cashback já utilizado nunca são removidas, mesmo depois de vencidas.
         </p>
         <Button type="button" variant="danger" size="sm" icon={<TrashIcon />} disabled={cleaning} onClick={runCleanup}>
-          {cleaning ? 'Limpando...' : 'Limpar vendas com cashback expirado'}
+          {cleaning ? 'Limpando...' : 'Limpar vendas com cashback expirado e não usado'}
         </Button>
 
         {cleanupLog.length > 0 && (

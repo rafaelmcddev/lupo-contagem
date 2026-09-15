@@ -3,8 +3,9 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
-import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
+import { CASHBACK_USABLE_AFTER_DAYS, calculateExpiresAt, calculateMinPurchaseToUseCents, calculateRewardCents } from '@/lib/rewards';
 import { isSalePinUnlocked } from '@/lib/salePin';
+import { getStoreCashbackSettings } from '@/lib/storeCashback';
 import { getStoreIdFromRequest } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,10 @@ export async function GET(req: Request) {
   if (!isSalePinUnlocked(req, storeId)) {
     return NextResponse.json({ error: 'sale_pin_required' }, { status: 401 });
   }
+  const { percent, expiryDays, maxUsagePercent } = await getStoreCashbackSettings(db, storeId);
+  // Cashback isn't usable right after the purchase — see lib/rewards.ts's
+  // calculateExpiresAt for the same rule applied here in SQL.
+  const trueExpiryDays = expiryDays + CASHBACK_USABLE_AFTER_DAYS;
 
   const url = new URL(req.url);
   const today = todayIso();
@@ -34,15 +39,15 @@ export async function GET(req: Request) {
 
   const conditions = [
     eq(sales.storeId, storeId),
-    sql`${sales.saleDate} + interval '30 days' >= ${from}::date`,
-    sql`${sales.saleDate} + interval '30 days' <= ${to}::date`,
+    sql`${sales.saleDate} + make_interval(days => ${trueExpiryDays}) >= ${from}::date`,
+    sql`${sales.saleDate} + make_interval(days => ${trueExpiryDays}) <= ${to}::date`,
   ];
   if (cashbackUsedParam === 'true') conditions.push(eq(sales.cashbackUsed, true));
   if (cashbackUsedParam === 'false') conditions.push(eq(sales.cashbackUsed, false));
   const whereClause = and(...conditions);
 
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ count, totalValueCents }] = await db
+    .select({ count: sql<number>`count(*)::int`, totalValueCents: sql<number>`coalesce(sum(${sales.valueCents}), 0)::int` })
     .from(sales)
     .innerJoin(customers, eq(sales.customerId, customers.id))
     .where(whereClause);
@@ -62,15 +67,30 @@ export async function GET(req: Request) {
     .limit(pageSize)
     .offset((page - 1) * pageSize);
 
-  const items = rows.map((r) => ({
-    id: r.id,
-    saleDate: r.saleDate,
-    customerName: r.customerName,
-    valueCents: r.valueCents,
-    rewardCents: calculateRewardCents(r.valueCents),
-    cashbackUsed: r.cashbackUsed,
-    expiresAt: calculateExpiresAt(r.saleDate),
-  }));
+  const items = rows.map((r) => {
+    const rewardCents = calculateRewardCents(r.valueCents, percent);
+    return {
+      id: r.id,
+      saleDate: r.saleDate,
+      customerName: r.customerName,
+      valueCents: r.valueCents,
+      rewardCents,
+      cashbackUsed: r.cashbackUsed,
+      expiresAt: calculateExpiresAt(r.saleDate, expiryDays),
+      minPurchaseCents: calculateMinPurchaseToUseCents(rewardCents, maxUsagePercent),
+    };
+  });
 
-  return NextResponse.json({ items, total: count, page, pageSize, from, to });
+  return NextResponse.json({
+    items,
+    total: count,
+    page,
+    pageSize,
+    from,
+    to,
+    maxUsagePercent,
+    // Totals reflect every sale matching the filters, not just this page.
+    totalValueCents,
+    totalRewardCents: calculateRewardCents(totalValueCents, percent),
+  });
 }

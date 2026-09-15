@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
-import { customers, sales, whatsappSends } from '@/db/schema';
+import { customers, sales, stores, whatsappSends } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId } from '@/tests/testStores';
@@ -29,7 +30,7 @@ async function createDueSale() {
   const [customer] = await db.insert(customers).values({ storeId, name: 'Ana', phone: '99999-0000' }).returning();
   const [sale] = await db
     .insert(sales)
-    .values({ storeId, customerId: customer.id, saleDate: addDaysToIsoDate(todayIso(), -25), valueCents: 10000 })
+    .values({ storeId, customerId: customer.id, saleDate: addDaysToIsoDate(todayIso(), -28), valueCents: 10000 })
     .returning();
   return sale;
 }
@@ -86,11 +87,26 @@ describe('GET /api/cron/reward-reminders', () => {
     await createDueSale();
     const otherStoreId = await getTestStoreId('campo-grande-ms');
     const [otherCustomer] = await db.insert(customers).values({ storeId: otherStoreId, name: 'Bia', phone: '1' }).returning();
-    await db.insert(sales).values({ storeId: otherStoreId, customerId: otherCustomer.id, saleDate: addDaysToIsoDate(todayIso(), -25), valueCents: 5000 });
+    await db.insert(sales).values({ storeId: otherStoreId, customerId: otherCustomer.id, saleDate: addDaysToIsoDate(todayIso(), -28), valueCents: 5000 });
 
     const res = await GET(cronReq());
     const data = await res.json();
     expect(data.sent).toBe(2);
+  });
+
+  it('uses the store-specific expiry to decide what is due, not the 30-day default', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    await db.update(stores).set({ cashbackExpiryDays: 60 }).where(eq(stores.id, storeId));
+
+    // 28 days ago is due under the 30-day default, but this store's expiry
+    // is 60 days, so the reminder window (58 <= age < 63) hasn't opened yet.
+    await createDueSale();
+    const res = await GET(cronReq());
+    const data = await res.json();
+    expect(data.sent).toBe(0);
   });
 
   it('returns 500 without leaking a bypass when CRON_SECRET is unset', async () => {

@@ -62,8 +62,8 @@ describe('RecompensasPage', () => {
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     expect(screen.getByText('R$ 45,90')).toBeInTheDocument();
 
-    const [requestedUrl] = fetchMock.mock.calls[0];
-    const params = new URL(requestedUrl, 'http://localhost').searchParams;
+    const salesCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith('/api/sales?'))!;
+    const params = new URL(salesCall[0] as string, 'http://localhost').searchParams;
     expect(params.get('pageSize')).toBe('20');
     expect(params.get('sort')).toBe('recent');
   });
@@ -128,14 +128,23 @@ describe('RecompensasPage', () => {
   it('removes a sale after confirming', async () => {
     unlock();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
-      })
-      .mockResolvedValueOnce({ json: async () => ({ pending: [] }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
-      .mockResolvedValueOnce({ json: async () => ({ sales: [], total: 0 }) });
+    let salesLoaded = 0;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url === '/api/settings') return Promise.resolve({ json: async () => ({ cashbackPercent: 5 }) });
+      if (url === '/api/whatsapp/pending') return Promise.resolve({ json: async () => ({ pending: [] }) });
+      if (url === '/api/sales/1' && method === 'DELETE') return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+      if (String(url).startsWith('/api/sales?')) {
+        salesLoaded += 1;
+        return Promise.resolve({
+          json: async () =>
+            salesLoaded === 1
+              ? { sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }
+              : { sales: [], total: 0 },
+        });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<RecompensasPage />);
@@ -148,13 +157,20 @@ describe('RecompensasPage', () => {
   it('shows an error and keeps the row when removing a sale fails', async () => {
     unlock();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
-      })
-      .mockResolvedValueOnce({ json: async () => ({ pending: [] }) })
-      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url === '/api/settings') return Promise.resolve({ json: async () => ({ cashbackPercent: 5 }) });
+      if (url === '/api/whatsapp/pending') return Promise.resolve({ json: async () => ({ pending: [] }) });
+      if (url === '/api/sales/1' && method === 'DELETE') {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) });
+      }
+      if (String(url).startsWith('/api/sales?')) {
+        return Promise.resolve({
+          json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 4590, customerId: 1, customerName: 'Ana' }], total: 1 }),
+        });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<RecompensasPage />);
@@ -173,9 +189,10 @@ describe('RecompensasPage', () => {
 
     fireEvent.change(screen.getByLabelText('Valor da venda'), { target: { value: '10000' } });
     expect(screen.getByText('R$ 5,00')).toBeInTheDocument(); // 5% of R$100,00
+    expect(screen.getByText(/válido em compras a partir de R\$ 25,00/)).toBeInTheDocument(); // 20% usage cap
   });
 
-  it('shows a reward column in the sales table', async () => {
+  it('shows a reward column in the sales table, including the minimum-purchase note', async () => {
     unlock();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1, pending: [] }),
@@ -183,6 +200,7 @@ describe('RecompensasPage', () => {
     render(<RecompensasPage />);
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     expect(screen.getByText('R$ 5,00')).toBeInTheDocument();
+    expect(screen.getByText(/mín\. compra R\$ 25,00/)).toBeInTheDocument();
   });
 
   it('toggles cashback used for a sale', async () => {
@@ -218,6 +236,9 @@ describe('RecompensasPage', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
+      if (url === '/api/settings') {
+        return Promise.resolve({ json: async () => ({ whatsappApiConfigured: true }) });
+      }
       if (url.startsWith('/api/sales?')) {
         return Promise.resolve({ json: async () => ({ sales: [], total: 0 }) });
       }
@@ -253,6 +274,24 @@ describe('RecompensasPage', () => {
     expect(screen.queryByText(/mensagem pendente/)).not.toBeInTheDocument();
   });
 
+  it('never shows the pending banner while the Meta API is not configured, even if items would be pending', async () => {
+    unlock();
+    const fetchMock = vi.fn((url: string) => {
+      if (url === '/api/settings') return Promise.resolve({ json: async () => ({ whatsappApiConfigured: false }) });
+      if (url === '/api/whatsapp/pending') {
+        return Promise.resolve({
+          json: async () => ({ pending: [{ saleId: 1, type: 'purchase', customerName: 'Ana', whatsappUrl: 'https://wa.me/1?text=x' }] }),
+        });
+      }
+      return Promise.resolve({ json: async () => ({ sales: [], total: 0 }) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText('Nenhuma venda lançada ainda.')).toBeInTheDocument());
+    expect(screen.queryByText(/mensagem pendente/)).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/whatsapp/pending');
+  });
+
   it('sends a manual reminder and opens WhatsApp Web', async () => {
     unlock();
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
@@ -284,6 +323,9 @@ describe('RecompensasPage', () => {
     let pendingCallCount = 0;
     const fetchMock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
+      if (url === '/api/settings') {
+        return Promise.resolve({ json: async () => ({ whatsappApiConfigured: true }) });
+      }
       if (url.startsWith('/api/sales?')) {
         return Promise.resolve({ json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1 }) });
       }

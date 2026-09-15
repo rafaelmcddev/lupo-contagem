@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/client';
-import { customers, sales, whatsappSends } from '@/db/schema';
+import { customers, sales, stores, whatsappSends } from '@/db/schema';
 import { todayIso } from '@/lib/dates';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
@@ -36,8 +37,8 @@ describe('POST /api/sales/:id/send-reminder', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     // '99999-0000' strips to the 9 digits '999990000', then gets the '55'
-    // country-code prefix from buildWhatsAppWebUrl -> '55999990000'.
-    expect(data.whatsappUrl).toContain('https://web.whatsapp.com/send?phone=55999990000&text=');
+    // country-code prefix from buildWhatsAppUrl -> '55999990000'.
+    expect(data.whatsappUrl).toContain('https://wa.me/55999990000?text=');
 
     const [row] = await db.select().from(whatsappSends);
     expect(row).toMatchObject({ saleId, type: 'reminder', status: 'opened', trigger: 'manual' });
@@ -59,5 +60,18 @@ describe('POST /api/sales/:id/send-reminder', () => {
   it('returns 404 for a non-integer id instead of throwing', async () => {
     const res = await POST(postReq(), { params: { id: 'abc' } });
     expect(res.status).toBe(404);
+  });
+
+  it('fills the store-specific template with the store name and its own percent/expiry', async () => {
+    await db
+      .update(stores)
+      .set({ cashbackPercent: 10, cashbackExpiryDays: 45, whatsappMessageTemplate: 'Oi %nome%, %cashback% de %loja% vale até %data_limite%' })
+      .where(eq(stores.id, storeId));
+
+    const res = await POST(postReq(), { params: { id: String(saleId) } });
+    const data = await res.json();
+    const text = decodeURIComponent(data.whatsappUrl.split('text=')[1]);
+    expect(text).toContain('Oi Ana,');
+    expect(text).toContain('R$ 10,00 de Coxim-MS vale até');
   });
 });

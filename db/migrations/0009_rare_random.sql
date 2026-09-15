@@ -1,0 +1,1 @@
+ALTER TABLE "stores" ADD COLUMN "cashback_max_usage_percent" double precision;

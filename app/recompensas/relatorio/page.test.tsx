@@ -29,8 +29,21 @@ describe('RelatorioPage', () => {
       if (url.startsWith('/api/rewards/expiring')) {
         return Promise.resolve({
           json: async () => ({
-            items: [{ id: 1, saleDate: '2026-09-14', customerName: 'Ana', valueCents: 10000, rewardCents: 500, cashbackUsed: false, expiresAt: '2026-10-14' }],
+            items: [
+              {
+                id: 1,
+                saleDate: '2026-09-14',
+                customerName: 'Ana',
+                valueCents: 10000,
+                rewardCents: 500,
+                cashbackUsed: false,
+                expiresAt: '2026-10-14',
+                minPurchaseCents: 2500,
+              },
+            ],
             total: 1,
+            totalValueCents: 10000,
+            totalRewardCents: 500,
           }),
         });
       }
@@ -47,9 +60,34 @@ describe('RelatorioPage', () => {
     render(<RelatorioPage />);
     await waitFor(() => expect(screen.getByText('Ana')).toBeInTheDocument());
     expect(screen.getByText('R$ 100,00')).toBeInTheDocument();
-    expect(screen.getByText('R$ 5,00')).toBeInTheDocument();
+    expect(screen.getAllByText('R$ 5,00').length).toBeGreaterThan(0); // shows in the row and the totalizer
     expect(screen.getByText('14/09/2026')).toBeInTheDocument();
     expect(screen.getByText('14/10/2026')).toBeInTheDocument();
+    expect(screen.getByText(/mín\. compra R\$ 25,00/)).toBeInTheDocument();
+  });
+
+  it('shows a totalizer across the full filtered result, not just the current page', async () => {
+    unlock();
+    const fetchMock = vi.fn((url: string) => {
+      if (url.startsWith('/api/rewards/expiring')) {
+        return Promise.resolve({
+          json: async () => ({
+            items: [{ id: 1, saleDate: '2026-09-14', customerName: 'Ana', valueCents: 10000, rewardCents: 500, cashbackUsed: false, expiresAt: '2026-10-14' }],
+            total: 3,
+            totalValueCents: 30000,
+            totalRewardCents: 1500,
+          }),
+        });
+      }
+      return Promise.resolve({ json: async () => ({ log: [], count: 0 }) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RelatorioPage />);
+    await waitFor(() => expect(screen.getByText(/Total do período/)).toBeInTheDocument());
+    expect(screen.getByText(/3 venda\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/R\$ 300,00 em valor/)).toBeInTheDocument();
+    expect(screen.getByText('R$ 15,00')).toBeInTheDocument();
   });
 
   it('re-fetches with cashbackUsed=true when that filter is selected', async () => {

@@ -12,7 +12,7 @@ import { PinGate } from '@/components/PinGate';
 import { ChartIcon, CheckIcon, PencilIcon, PlusIcon, SendIcon, TrashIcon, UsersIcon, XIcon } from '@/components/ui/icons';
 import { formatCentsAsBRL } from '@/lib/currency';
 import { formatDateBR, todayIso } from '@/lib/dates';
-import { calculateRewardCents } from '@/lib/rewards';
+import { DEFAULT_CASHBACK_MAX_USAGE_PERCENT, DEFAULT_CASHBACK_PERCENT, calculateMinPurchaseToUseCents, calculateRewardCents } from '@/lib/rewards';
 
 interface Customer {
   id: number;
@@ -68,7 +68,23 @@ function RecompensasContent() {
   const [editValueCents, setEditValueCents] = useState(0);
   const [pending, setPending] = useState<Array<{ saleId: number; type: 'purchase' | 'reminder'; customerName: string; whatsappUrl: string }>>([]);
   const [processingPending, setProcessingPending] = useState(false);
+  const [cashbackPercent, setCashbackPercent] = useState(DEFAULT_CASHBACK_PERCENT);
+  const [cashbackMaxUsagePercent, setCashbackMaxUsagePercent] = useState(DEFAULT_CASHBACK_MAX_USAGE_PERCENT);
+  // The pending-messages banner only shows once the Meta API is configured —
+  // requested explicitly, since the manual/queue flow it used to nag about
+  // was more disruptive than helpful day-to-day.
+  const [whatsappApiConfigured, setWhatsappApiConfigured] = useState(false);
   const savingRef = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d) => {
+        setCashbackPercent(d.cashbackPercent ?? DEFAULT_CASHBACK_PERCENT);
+        setCashbackMaxUsagePercent(d.cashbackMaxUsagePercent ?? DEFAULT_CASHBACK_MAX_USAGE_PERCENT);
+        setWhatsappApiConfigured(Boolean(d.whatsappApiConfigured));
+      });
+  }, []);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), sort });
@@ -83,10 +99,11 @@ function RecompensasContent() {
   }, [load]);
 
   const loadPending = useCallback(async () => {
+    if (!whatsappApiConfigured) return;
     const res = await fetch('/api/whatsapp/pending');
     const data = await res.json();
     setPending(data.pending ?? []);
-  }, []);
+  }, [whatsappApiConfigured]);
 
   useEffect(() => {
     loadPending();
@@ -269,7 +286,10 @@ function RecompensasContent() {
           />
           {valueCents > 0 && (
             <span className="text-sm text-gray-600">
-              Recompensa: <span className="font-semibold text-accent">{formatCentsAsBRL(calculateRewardCents(valueCents))}</span>
+              Recompensa:{' '}
+              <span className="font-semibold text-accent">{formatCentsAsBRL(calculateRewardCents(valueCents, cashbackPercent))}</span>
+              {' — '}válido em compras a partir de{' '}
+              {formatCentsAsBRL(calculateMinPurchaseToUseCents(calculateRewardCents(valueCents, cashbackPercent), cashbackMaxUsagePercent))}
             </span>
           )}
           <Button type="submit" size="sm" icon={<PlusIcon />} disabled={saving}>
@@ -328,7 +348,16 @@ function RecompensasContent() {
           },
           {
             header: 'Recompensa',
-            render: (s: Sale) => formatCentsAsBRL(calculateRewardCents(s.valueCents)),
+            render: (s: Sale) => {
+              const rewardCents = calculateRewardCents(s.valueCents, cashbackPercent);
+              const minPurchaseCents = calculateMinPurchaseToUseCents(rewardCents, cashbackMaxUsagePercent);
+              return (
+                <span className="flex flex-col">
+                  <span>{formatCentsAsBRL(rewardCents)}</span>
+                  <span className="text-xs text-gray-500">mín. compra {formatCentsAsBRL(minPurchaseCents)}</span>
+                </span>
+              );
+            },
           },
           {
             header: 'Cashback',

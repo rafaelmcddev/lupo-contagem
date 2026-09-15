@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
-import { customers, whatsappSends } from '@/db/schema';
+import { customers, stores, whatsappSends } from '@/db/schema';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
 import { unlockedRequest } from '@/tests/testSalePin';
@@ -166,5 +167,19 @@ describe('/api/sales', () => {
 
     const rows = await db.select().from(whatsappSends);
     expect(rows).toHaveLength(0);
+  });
+
+  it('uses the store-specific cashback percent when sending the Meta template', async () => {
+    vi.stubEnv('META_WHATSAPP_TOKEN', 'tok');
+    vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
+    vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+    await db.update(stores).set({ cashbackPercent: 10 }).where(eq(stores.id, storeId));
+
+    await POST(postReq({ customerId, saleDate: '2026-09-14', valueCents: 10000 }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.template.components[0].parameters[2].text).toBe('R$ 10,00');
   });
 });

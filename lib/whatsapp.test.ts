@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildRewardMessage, buildWhatsAppWebUrl, isWhatsAppApiConfigured, sendViaMetaApi } from './whatsapp';
+import { DEFAULT_WHATSAPP_MESSAGE_TEMPLATE, buildRewardMessage, buildWhatsAppUrl, isWhatsAppApiConfigured, sendViaMetaApi } from './whatsapp';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -36,33 +36,58 @@ describe('isWhatsAppApiConfigured', () => {
 });
 
 describe('buildRewardMessage', () => {
-  it('substitutes every placeholder in the standard template', () => {
+  it('substitutes every placeholder, including the store name and the usage cap, in the standard template', () => {
     const message = buildRewardMessage({
+      template: DEFAULT_WHATSAPP_MESSAGE_TEMPLATE,
+      storeName: 'Loja Up - Coxim-MS',
       customerName: 'Ana',
       saleDateBR: '14/09/2026',
       rewardBRL: 'R$ 2,30',
       expiresAtBR: '14/10/2026',
+      maxUsagePercentText: '20%',
+      minPurchaseBRL: 'R$ 11,50',
     });
     expect(message).toContain('Olá, Ana!');
+    expect(message).toContain('escolher a Loja Up - Coxim-MS!');
     expect(message).toContain('realizada no dia 14/09/2026');
     expect(message).toContain('gerou R$ 2,30 de crédito');
-    expect(message).toContain('utilizar esse valor até: 14/10/2026');
+    expect(message).toContain('até: 14/10/2026');
+    expect(message).toContain('cobrir até 20% do valor');
+    expect(message).toContain('pelo menos R$ 11,50');
+    expect(message).not.toContain('%loja%');
     expect(message).not.toContain('%nome%');
     expect(message).not.toContain('%dia%');
     expect(message).not.toContain('%cashback%');
     expect(message).not.toContain('%data_limite%');
+    expect(message).not.toContain('%limite_uso%');
+    expect(message).not.toContain('%compra_minima%');
+  });
+
+  it('substitutes every occurrence of a placeholder used more than once in a custom template', () => {
+    const message = buildRewardMessage({
+      template: '%nome%, %nome%! Bem-vindo à %loja%.',
+      storeName: 'Loja Up',
+      customerName: 'Ana',
+      saleDateBR: '14/09/2026',
+      rewardBRL: 'R$ 2,30',
+      expiresAtBR: '14/10/2026',
+      maxUsagePercentText: '20%',
+      minPurchaseBRL: 'R$ 11,50',
+    });
+    expect(message).toBe('Ana, Ana! Bem-vindo à Loja Up.');
   });
 });
 
-describe('buildWhatsAppWebUrl', () => {
+describe('buildWhatsAppUrl', () => {
   it('strips formatting from the phone, prefixes the country code, and encodes the text', () => {
-    const url = buildWhatsAppWebUrl('(67) 99999-0000', 'Olá!');
-    expect(url).toBe('https://web.whatsapp.com/send?phone=5567999990000&text=Ol%C3%A1!');
+    const url = buildWhatsAppUrl('(67) 99999-0000', 'Olá!');
+    // wa.me opens the native app on mobile and falls back to WhatsApp Web on desktop.
+    expect(url).toBe('https://wa.me/5567999990000?text=Ol%C3%A1!');
   });
 
   it('does not double the country code if already present', () => {
-    const url = buildWhatsAppWebUrl('55 67 99999-0000', 'oi');
-    expect(url).toContain('phone=5567999990000');
+    const url = buildWhatsAppUrl('55 67 99999-0000', 'oi');
+    expect(url).toContain('wa.me/5567999990000');
   });
 });
 

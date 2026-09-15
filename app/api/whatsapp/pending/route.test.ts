@@ -1,6 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
-import { customers, sales, whatsappSends } from '@/db/schema';
+import { customers, sales, stores, whatsappSends } from '@/db/schema';
 import { addDaysToIsoDate, todayIso } from '@/lib/dates';
 import { resetDb } from '@/tests/resetDb';
 import { getTestStoreId, storeRequest } from '@/tests/testStores';
@@ -66,14 +67,16 @@ describe('GET /api/whatsapp/pending', () => {
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'purchase')).toBe(false);
   });
 
-  it('lists a reminder as pending once 25 days have passed and cashback is unused', async () => {
-    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
+  it('lists a reminder as pending once 28 days have passed and cashback is unused', async () => {
+    // Full expiry is 33 days (30 configured + 3-day usable-after delay); the
+    // reminder fires 5 days before that, i.e. day 28.
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -28) });
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.pending).toContainEqual(expect.objectContaining({ saleId: sale.id, type: 'reminder' }));
   });
 
-  it('does not list a reminder before day 25', async () => {
+  it('does not list a reminder before day 28', async () => {
     const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -10) });
     const res = await GET(getReq());
     const data = await res.json();
@@ -81,14 +84,14 @@ describe('GET /api/whatsapp/pending', () => {
   });
 
   it('does not list a reminder for a sale whose cashback was already used', async () => {
-    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25), cashbackUsed: true });
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -28), cashbackUsed: true });
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
   });
 
-  it('does not list a reminder for a sale that already expired (30+ days)', async () => {
-    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -31) });
+  it('does not list a reminder for a sale that already expired (33+ days)', async () => {
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -34) });
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
@@ -98,7 +101,7 @@ describe('GET /api/whatsapp/pending', () => {
     await createSale();
     const res = await GET(getReq());
     const data = await res.json();
-    expect(data.pending[0].whatsappUrl).toMatch(/^https:\/\/web\.whatsapp\.com\/send\?phone=55/);
+    expect(data.pending[0].whatsappUrl).toMatch(/^https:\/\/wa\.me\/55/);
   });
 
   it('does not list a sale bought 40 days ago (already expired) as a pending purchase', async () => {
@@ -113,14 +116,23 @@ describe('GET /api/whatsapp/pending', () => {
     vi.stubEnv('META_WHATSAPP_PHONE_NUMBER_ID', 'phone-id');
     vi.stubEnv('META_WHATSAPP_TEMPLATE_NAME', 'reward_notice');
 
-    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -28) });
     const res = await GET(getReq());
     const data = await res.json();
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
   });
 
+  it('uses the store-specific expiry (not the 30-day default) to decide what is pending', async () => {
+    await db.update(stores).set({ cashbackExpiryDays: 45 }).where(eq(stores.id, storeId));
+    // 40 days ago is past the default's 33-day full expiry but still well within this store's 48-day one.
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -40) });
+    const res = await GET(getReq());
+    const data = await res.json();
+    expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'purchase')).toBe(true);
+  });
+
   it('no longer lists a reminder after it was already sent manually — the queue is the only delivery mechanism when the API is not configured', async () => {
-    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
+    const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -28) });
     await db.insert(whatsappSends).values({
       storeId,
       saleId: sale.id,
