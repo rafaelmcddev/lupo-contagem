@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, asc, eq, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, notExists, sql } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { customers, sales, whatsappSends } from '@/db/schema';
 import { calculateExpiresAt, calculateRewardCents } from '@/lib/rewards';
@@ -75,17 +75,18 @@ export async function GET(req: Request) {
             eq(sales.cashbackUsed, false),
             sql`${sales.saleDate} + interval '25 days' <= current_date`,
             sql`${sales.saleDate} + interval '30 days' > current_date`,
+            // Unlike the cron route (which only ever runs once the Meta API is
+            // configured, and deliberately still sends the "official"
+            // automatic reminder even after an earlier manual one), this
+            // queue only exists BECAUSE the API isn't configured — there is
+            // no automatic mechanism left to run later. Any prior reminder
+            // for this sale, manual or not, already means a human took care
+            // of it, so it must not keep resurfacing here.
             notExists(
               db
                 .select()
                 .from(whatsappSends)
-                .where(
-                  and(
-                    eq(whatsappSends.saleId, sales.id),
-                    eq(whatsappSends.type, 'reminder'),
-                    ne(whatsappSends.trigger, 'manual'),
-                  ),
-                ),
+                .where(and(eq(whatsappSends.saleId, sales.id), eq(whatsappSends.type, 'reminder'))),
             ),
           ),
         )

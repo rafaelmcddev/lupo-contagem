@@ -119,7 +119,7 @@ describe('GET /api/whatsapp/pending', () => {
     expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
   });
 
-  it('still lists a due reminder even after an earlier manual send (manual does not cancel the automatic one)', async () => {
+  it('no longer lists a reminder after it was already sent manually — the queue is the only delivery mechanism when the API is not configured', async () => {
     const sale = await createSale({ saleDate: addDaysToIsoDate(todayIso(), -25) });
     await db.insert(whatsappSends).values({
       storeId,
@@ -132,6 +132,6 @@ describe('GET /api/whatsapp/pending', () => {
     });
     const res = await GET(getReq());
     const data = await res.json();
-    expect(data.pending).toContainEqual(expect.objectContaining({ saleId: sale.id, type: 'reminder' }));
+    expect(data.pending.some((p: any) => p.saleId === sale.id && p.type === 'reminder')).toBe(false);
   });
 });

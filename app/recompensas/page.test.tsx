@@ -277,4 +277,36 @@ describe('RecompensasPage', () => {
 
     await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://web.whatsapp.com/send?phone=1&text=lembrete', '_blank'));
   });
+
+  it('refreshes the pending-messages count after a manual reminder is sent, so a resolved item stops showing', async () => {
+    unlock();
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    let pendingCallCount = 0;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (url.startsWith('/api/sales?')) {
+        return Promise.resolve({ json: async () => ({ sales: [{ id: 1, saleDate: '2026-09-14', valueCents: 10000, customerId: 1, customerName: 'Ana', cashbackUsed: false }], total: 1 }) });
+      }
+      if (url === '/api/whatsapp/pending') {
+        pendingCallCount += 1;
+        // Pending on the first load (mount); resolved by the time the page
+        // asks again after the manual send.
+        const pending = pendingCallCount === 1 ? [{ saleId: 1, type: 'reminder', customerName: 'Ana', whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=x' }] : [];
+        return Promise.resolve({ json: async () => ({ pending }) });
+      }
+      if (url === '/api/sales/1/send-reminder' && method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => ({ whatsappUrl: 'https://web.whatsapp.com/send?phone=1&text=lembrete' }) });
+      }
+      return Promise.resolve({ json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RecompensasPage />);
+    await waitFor(() => expect(screen.getByText(/1 mensagem pendente/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar lembrete' }));
+
+    await waitFor(() => expect(screen.queryByText(/mensagem pendente/)).not.toBeInTheDocument());
+    expect(pendingCallCount).toBeGreaterThanOrEqual(2);
+  });
 });

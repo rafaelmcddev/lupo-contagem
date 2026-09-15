@@ -202,6 +202,11 @@ function RecompensasContent() {
     }
     const data = await res.json();
     window.open(data.whatsappUrl, '_blank');
+    // The manual send just logged a whatsapp_sends row for this sale, which
+    // may be exactly what the pending queue's "N mensagens pendentes" count
+    // was waiting on — refresh it so the banner doesn't keep showing a
+    // now-stale count until the next full page reload.
+    loadPending();
   }
 
   return (
@@ -331,8 +336,10 @@ function RecompensasContent() {
               <Button
                 type="button"
                 size="sm"
+                iconOnly
                 variant={s.cashbackUsed ? 'secondary' : 'primary'}
                 icon={s.cashbackUsed ? <XIcon /> : <CheckIcon />}
+                aria-label={s.cashbackUsed ? 'Desmarcar' : 'Marcar como usado'}
                 onClick={() => toggleCashbackUsed(s)}
               >
                 {s.cashbackUsed ? 'Desmarcar' : 'Marcar como usado'}
@@ -343,22 +350,54 @@ function RecompensasContent() {
             render: (s: Sale) =>
               editingId === s.id ? (
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" icon={<CheckIcon />} onClick={() => saveEdit(s)}>
+                  <Button type="button" size="sm" iconOnly icon={<CheckIcon />} aria-label="Salvar" onClick={() => saveEdit(s)}>
                     Salvar
                   </Button>
-                  <Button type="button" size="sm" variant="secondary" icon={<XIcon />} onClick={() => setEditingId(null)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    iconOnly
+                    variant="secondary"
+                    icon={<XIcon />}
+                    aria-label="Cancelar"
+                    onClick={() => setEditingId(null)}
+                  >
                     Cancelar
                   </Button>
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" variant="secondary" icon={<PencilIcon />} onClick={() => startEdit(s)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    iconOnly
+                    variant="secondary"
+                    icon={<PencilIcon />}
+                    aria-label="Editar"
+                    onClick={() => startEdit(s)}
+                  >
                     Editar
                   </Button>
-                  <Button type="button" size="sm" variant="secondary" icon={<SendIcon />} onClick={() => sendReminder(s)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    iconOnly
+                    variant="secondary"
+                    icon={<SendIcon />}
+                    aria-label="Enviar lembrete"
+                    onClick={() => sendReminder(s)}
+                  >
                     Enviar lembrete
                   </Button>
-                  <Button type="button" size="sm" variant="danger" icon={<TrashIcon />} onClick={() => removeSale(s.id)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    iconOnly
+                    variant="danger"
+                    icon={<TrashIcon />}
+                    aria-label="Remover"
+                    onClick={() => removeSale(s.id)}
+                  >
                     Remover
                   </Button>
                 </div>
